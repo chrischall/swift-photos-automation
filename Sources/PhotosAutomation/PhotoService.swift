@@ -241,4 +241,77 @@ public struct PhotoService: Sendable {
         end tell
         """
     }
+
+    // MARK: - Organize, export, import
+
+    /// Creates a new top-level album.
+    public func createAlbum(title: String) async throws -> PhotoAlbum {
+        let title = try Self.validateNonEmpty(title, name: "title")
+        return try await store.createAlbum(title: title)
+    }
+
+    /// Adds assets to an album.
+    public func add(ids: [String], toAlbum albumId: String) async throws {
+        try Self.validateIds(ids)
+        let albumId = try Self.validateNonEmpty(albumId, name: "albumId")
+        try await store.add(ids: ids, toAlbum: albumId)
+    }
+
+    /// Removes assets from an album (the assets stay in the library).
+    public func remove(ids: [String], fromAlbum albumId: String) async throws {
+        try Self.validateIds(ids)
+        let albumId = try Self.validateNonEmpty(albumId, name: "albumId")
+        try await store.remove(ids: ids, fromAlbum: albumId)
+    }
+
+    /// Sets or clears the favorite flag on an asset.
+    public func setFavorite(id: String, _ isFavorite: Bool) async throws {
+        let id = try Self.validateNonEmpty(id, name: "id")
+        try await store.setFavorite(id: id, isFavorite)
+    }
+
+    /// Exports each asset's original file (photo or video) into
+    /// `directory`, creating the directory if needed.
+    /// - Returns: URLs of the written files, in input order.
+    public func exportOriginals(ids: [String], to directory: URL) async throws -> [URL] {
+        try Self.validateIds(ids)
+        return try await store.exportOriginals(ids: ids, to: directory)
+    }
+
+    /// A JPEG rendition scaled to fit `maxDimension` pixels on the longest
+    /// side — suitable for returning as base64 image content from an MCP
+    /// tool without touching disk.
+    public func imageData(id: String, maxDimension: Int = 1024) async throws -> Data {
+        let id = try Self.validateNonEmpty(id, name: "id")
+        guard maxDimension > 0 else {
+            throw PhotoServiceError.invalidInput("maxDimension must be positive")
+        }
+        return try await store.imageData(id: id, maxDimension: maxDimension)
+    }
+
+    /// Imports image/video files into the library, optionally adding them
+    /// to an album. Every file must exist.
+    /// - Returns: The created assets.
+    public func importFiles(urls: [URL], albumId: String? = nil) async throws -> [PhotoAsset] {
+        guard !urls.isEmpty else {
+            throw PhotoServiceError.invalidInput("urls must not be empty")
+        }
+        for url in urls where !FileManager.default.fileExists(atPath: url.path) {
+            throw PhotoServiceError.invalidInput("file does not exist: \(url.path)")
+        }
+        if let albumId {
+            _ = try Self.validateNonEmpty(albumId, name: "albumId")
+        }
+        return try await store.importFiles(urls: urls, toAlbum: albumId)
+    }
+
+    /// Validates an id array: non-empty, no blank members.
+    static func validateIds(_ ids: [String]) throws {
+        guard !ids.isEmpty else {
+            throw PhotoServiceError.invalidInput("ids must not be empty")
+        }
+        guard ids.allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else {
+            throw PhotoServiceError.invalidInput("ids must not contain blank values")
+        }
+    }
 }
