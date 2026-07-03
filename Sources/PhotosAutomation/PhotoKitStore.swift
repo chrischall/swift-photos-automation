@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import Photos
+import UniformTypeIdentifiers
 
 /// Production ``PhotoLibraryStore`` backed by PhotoKit.
 ///
@@ -234,27 +235,146 @@ public struct PhotoKitStore: PhotoLibraryStore {
         return candidate
     }
 
+    // MARK: - Writes
+
+    /// Runs a PhotoKit change block, translating failures to
+    /// ``PhotoServiceError/operationFailed(_:)``.
+    private func performChanges(_ block: @escaping @Sendable () -> Void) async throws {
+        do {
+            try await PHPhotoLibrary.shared().performChanges(block)
+        } catch {
+            throw PhotoServiceError.operationFailed(error.localizedDescription)
+        }
+    }
+
     public func createAlbum(title: String) async throws -> PhotoAlbum {
-        fatalError("implemented in Task 11")
+        try await ensureAuthorized()
+        let createdId = Locked<String?>(nil)
+        try await performChanges {
+            let request = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: title)
+            createdId.value = request.placeholderForCreatedAssetCollection.localIdentifier
+        }
+        guard let id = createdId.value,
+              let collection = PHAssetCollection.fetchAssetCollections(
+                  withLocalIdentifiers: [id], options: nil
+              ).firstObject
+        else {
+            throw PhotoServiceError.operationFailed("album creation returned no identifier")
+        }
+        return PhotoAlbum(
+            id: collection.localIdentifier,
+            title: collection.localizedTitle ?? title,
+            assetCount: 0
+        )
     }
 
     public func deleteAlbum(id: String) async throws {
-        fatalError("implemented in Task 11")
+        try await ensureAuthorized()
+        guard PHAssetCollection.fetchAssetCollections(withLocalIdentifiers: [id], options: nil)
+            .firstObject != nil
+        else {
+            throw PhotoServiceError.notFound("album \(id)")
+        }
+        try await performChanges {
+            let collections = PHAssetCollection.fetchAssetCollections(withLocalIdentifiers: [id], options: nil)
+            PHAssetCollectionChangeRequest.deleteAssetCollections(collections)
+        }
     }
 
     public func add(ids: [String], toAlbum albumId: String) async throws {
-        fatalError("implemented in Task 11")
+        try await ensureAuthorized()
+        try ensureAssetsExist(ids)
+        try ensureAlbumExists(albumId)
+        try await performChanges {
+            guard let collection = PHAssetCollection.fetchAssetCollections(
+                withLocalIdentifiers: [albumId], options: nil
+            ).firstObject,
+                let request = PHAssetCollectionChangeRequest(for: collection)
+            else { return }
+            request.addAssets(PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil))
+        }
     }
 
     public func remove(ids: [String], fromAlbum albumId: String) async throws {
-        fatalError("implemented in Task 11")
+        try await ensureAuthorized()
+        try ensureAssetsExist(ids)
+        try ensureAlbumExists(albumId)
+        try await performChanges {
+            guard let collection = PHAssetCollection.fetchAssetCollections(
+                withLocalIdentifiers: [albumId], options: nil
+            ).firstObject,
+                let request = PHAssetCollectionChangeRequest(for: collection)
+            else { return }
+            request.removeAssets(PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil))
+        }
     }
 
     public func setFavorite(id: String, _ isFavorite: Bool) async throws {
-        fatalError("implemented in Task 11")
+        try await ensureAuthorized()
+        try ensureAssetsExist([id])
+        try await performChanges {
+            guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil).firstObject
+            else { return }
+            PHAssetChangeRequest(for: asset).isFavorite = isFavorite
+        }
     }
 
     public func importFiles(urls: [URL], toAlbum albumId: String?) async throws -> [PhotoAsset] {
-        fatalError("implemented in Task 11")
+        try await ensureAuthorized()
+        if let albumId {
+            try ensureAlbumExists(albumId)
+        }
+        let createdIds = Locked<[String]>([])
+        try await performChanges {
+            var placeholders: [PHObjectPlaceholder] = []
+            for url in urls {
+                let isVideo = UTType(filenameExtension: url.pathExtension)?
+                    .conforms(to: .movie) ?? false
+                let request = isVideo
+                    ? PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url)
+                    : PHAssetChangeRequest.creationRequestForAssetFromImage(atFileURL: url)
+                if let placeholder = request?.placeholderForCreatedAsset {
+                    placeholders.append(placeholder)
+                }
+            }
+            if let albumId,
+               let collection = PHAssetCollection.fetchAssetCollections(
+                   withLocalIdentifiers: [albumId], options: nil
+               ).firstObject,
+               let albumRequest = PHAssetCollectionChangeRequest(for: collection) {
+                albumRequest.addAssets(placeholders as NSArray)
+            }
+            createdIds.value = placeholders.map(\.localIdentifier)
+        }
+        guard createdIds.value.count == urls.count else {
+            throw PhotoServiceError.operationFailed(
+                "imported \(createdIds.value.count) of \(urls.count) files — unsupported format?"
+            )
+        }
+        return try await assets(ids: createdIds.value)
+    }
+
+    // MARK: - Existence checks
+
+    /// Throws ``PhotoServiceError/notFound(_:)`` when any id is unknown.
+    private func ensureAssetsExist(_ ids: [String]) throws {
+        let fetch = PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil)
+        guard fetch.count == ids.count else {
+            var found = Set<String>()
+            for i in 0..<fetch.count {
+                found.insert(fetch.object(at: i).localIdentifier)
+            }
+            let missing = ids.filter { !found.contains($0) }
+            throw PhotoServiceError.notFound("asset(s) \(missing.joined(separator: ", "))")
+        }
+    }
+
+    /// Throws ``PhotoServiceError/notFound(_:)`` when the album is unknown.
+    private func ensureAlbumExists(_ albumId: String) throws {
+        guard PHAssetCollection.fetchAssetCollections(withLocalIdentifiers: [albumId], options: nil)
+            .firstObject != nil
+        else {
+            throw PhotoServiceError.notFound("album \(albumId)")
+        }
     }
 }
