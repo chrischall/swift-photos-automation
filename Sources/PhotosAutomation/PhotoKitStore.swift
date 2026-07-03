@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Photos
 
@@ -148,11 +149,85 @@ public struct PhotoKitStore: PhotoLibraryStore {
     // MARK: - Writes (implemented in later tasks)
 
     public func exportOriginals(ids: [String], to directory: URL) async throws -> [URL] {
-        fatalError("implemented in Task 10")
+        try await ensureAuthorized()
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        var written: [URL] = []
+        for id in ids {
+            guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil).firstObject else {
+                throw PhotoServiceError.notFound("asset \(id)")
+            }
+            let resources = PHAssetResource.assetResources(for: asset)
+            guard let resource = resources.first(where: { $0.type == .photo || $0.type == .video })
+                ?? resources.first
+            else {
+                throw PhotoServiceError.operationFailed("asset \(id) has no exportable resource")
+            }
+            let destination = Self.availableURL(in: directory, filename: resource.originalFilename)
+            let options = PHAssetResourceRequestOptions()
+            options.isNetworkAccessAllowed = true
+            try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, Error>) in
+                PHAssetResourceManager.default().writeData(
+                    for: resource, toFile: destination, options: options
+                ) { error in
+                    if let error {
+                        c.resume(throwing: PhotoServiceError.operationFailed(error.localizedDescription))
+                    } else {
+                        c.resume()
+                    }
+                }
+            }
+            written.append(destination)
+        }
+        return written
     }
 
     public func imageData(id: String, maxDimension: Int) async throws -> Data {
-        fatalError("implemented in Task 10")
+        try await ensureAuthorized()
+        guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil).firstObject else {
+            throw PhotoServiceError.notFound("asset \(id)")
+        }
+        let options = PHImageRequestOptions()
+        options.deliveryMode = .highQualityFormat // handler fires exactly once
+        options.isNetworkAccessAllowed = true
+        options.resizeMode = .exact
+        let target = CGSize(width: maxDimension, height: maxDimension)
+        // Encode to JPEG inside the callback so only Sendable Data crosses
+        // the continuation (NSImage is not Sendable).
+        return try await withCheckedThrowingContinuation { (c: CheckedContinuation<Data, Error>) in
+            PHImageManager.default().requestImage(
+                for: asset, targetSize: target, contentMode: .aspectFit, options: options
+            ) { image, info in
+                guard let image else {
+                    let message = (info?[PHImageErrorKey] as? NSError)?.localizedDescription
+                        ?? "image request failed"
+                    c.resume(throwing: PhotoServiceError.operationFailed(message))
+                    return
+                }
+                guard let tiff = image.tiffRepresentation,
+                      let rep = NSBitmapImageRep(data: tiff),
+                      let jpeg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.85])
+                else {
+                    c.resume(throwing: PhotoServiceError.operationFailed("could not encode JPEG for \(id)"))
+                    return
+                }
+                c.resume(returning: jpeg)
+            }
+        }
+    }
+
+    /// Returns a URL in `directory` for `filename`, appending ` (n)` before
+    /// the extension when the name is already taken.
+    static func availableURL(in directory: URL, filename: String) -> URL {
+        let base = URL(fileURLWithPath: filename).deletingPathExtension().lastPathComponent
+        let ext = URL(fileURLWithPath: filename).pathExtension
+        var candidate = directory.appendingPathComponent(filename)
+        var counter = 1
+        while FileManager.default.fileExists(atPath: candidate.path) {
+            let name = ext.isEmpty ? "\(base) (\(counter))" : "\(base) (\(counter)).\(ext)"
+            candidate = directory.appendingPathComponent(name)
+            counter += 1
+        }
+        return candidate
     }
 
     public func createAlbum(title: String) async throws -> PhotoAlbum {

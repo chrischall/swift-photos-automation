@@ -110,3 +110,19 @@ import Testing
         #expect(store.calls == [expected])
     }
 }
+
+@Suite struct AvailableURLTests {
+    @Test func dedupesExistingFilenames() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("photos-automation-dedupe-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let first = PhotoKitStore.availableURL(in: dir, filename: "IMG_1.HEIC")
+        #expect(first.lastPathComponent == "IMG_1.HEIC")
+        try Data().write(to: first)
+
+        let second = PhotoKitStore.availableURL(in: dir, filename: "IMG_1.HEIC")
+        #expect(second.lastPathComponent == "IMG_1 (1).HEIC")
+    }
+}
