@@ -147,7 +147,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
         }
     }
 
-    // MARK: - Writes (implemented in later tasks)
+    // MARK: - Export and image data
 
     public func exportOriginals(ids: [String], to directory: URL) async throws -> [URL] {
         try await ensureAuthorized()
