@@ -38,7 +38,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
             with: .album, subtype: .albumRegular, options: nil
         )
         var albums: [PhotoAlbum] = []
-        for i in 0..<collections.count {
+        for i in 0 ..< collections.count {
             let collection = collections.object(at: i)
             let count = PHAsset.fetchAssets(in: collection, options: nil).count
             albums.append(PhotoAlbum(
@@ -84,7 +84,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
             fetch = PHAsset.fetchAssets(with: options)
         }
         var out: [PhotoAsset] = []
-        for i in 0..<fetch.count {
+        for i in 0 ..< fetch.count {
             out.append(Self.photoAsset(from: fetch.object(at: i)))
         }
         return out
@@ -102,7 +102,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
         try await ensureAuthorized()
         let fetch = PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil)
         var out: [PhotoAsset] = []
-        for i in 0..<fetch.count {
+        for i in 0 ..< fetch.count {
             out.append(Self.photoAsset(from: fetch.object(at: i)))
         }
         return out
@@ -131,19 +131,19 @@ public struct PhotoKitStore: PhotoLibraryStore {
 
     static func mediaType(from ph: PHAssetMediaType) -> PhotoMediaType {
         switch ph {
-        case .image: return .image
-        case .video: return .video
-        case .audio: return .audio
-        default: return .unknown
+        case .image: .image
+        case .video: .video
+        case .audio: .audio
+        default: .unknown
         }
     }
 
     static func phMediaType(_ type: PhotoMediaType) -> PHAssetMediaType {
         switch type {
-        case .image: return .image
-        case .video: return .video
-        case .audio: return .audio
-        case .unknown: return .unknown
+        case .image: .image
+        case .video: .video
+        case .audio: .audio
+        case .unknown: .unknown
         }
     }
 
@@ -343,7 +343,8 @@ public struct PhotoKitStore: PhotoLibraryStore {
                let collection = PHAssetCollection.fetchAssetCollections(
                    withLocalIdentifiers: [albumId], options: nil
                ).firstObject,
-               let albumRequest = PHAssetCollectionChangeRequest(for: collection) {
+               let albumRequest = PHAssetCollectionChangeRequest(for: collection)
+            {
                 albumRequest.addAssets(placeholders as NSArray)
             }
             createdIds.value = placeholders.map(\.localIdentifier)
@@ -363,7 +364,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
         let fetch = PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil)
         guard fetch.count == ids.count else {
             var found = Set<String>()
-            for i in 0..<fetch.count {
+            for i in 0 ..< fetch.count {
                 found.insert(fetch.object(at: i).localIdentifier)
             }
             let missing = ids.filter { !found.contains($0) }

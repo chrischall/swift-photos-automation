@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import PhotosAutomation
+import Testing
 
 /// Exercises the real `NSAppleScript` bridge with trivial scripts (no
 /// Photos permission needed). Opt-in because the bridge misbehaves inside

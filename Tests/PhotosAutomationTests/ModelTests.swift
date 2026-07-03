@@ -1,8 +1,8 @@
 import Foundation
-import Testing
 @testable import PhotosAutomation
+import Testing
 
-@Suite struct ModelTests {
+struct ModelTests {
     @Test func photoAssetDefaultsAndIdentity() {
         let asset = PhotoAsset(id: "ABC/L0/001")
         #expect(asset.id == "ABC/L0/001")

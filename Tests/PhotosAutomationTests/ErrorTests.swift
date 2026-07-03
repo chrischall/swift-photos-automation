@@ -1,8 +1,8 @@
 import Foundation
-import Testing
 @testable import PhotosAutomation
+import Testing
 
-@Suite struct AppleScriptErrorTests {
+struct AppleScriptErrorTests {
     @Test func runtimeDescription() {
         let error = AppleScriptError.runtime("Photos got an error")
         #expect(error.errorDescription == "AppleScript runtime error: Photos got an error")
@@ -19,7 +19,7 @@ import Testing
     }
 }
 
-@Suite struct PhotoServiceErrorTests {
+struct PhotoServiceErrorTests {
     @Test func descriptions() {
         #expect(PhotoServiceError.invalidInput("id must not be empty").errorDescription
             == "Invalid input: id must not be empty")

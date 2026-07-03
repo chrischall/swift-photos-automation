@@ -1,8 +1,8 @@
 import Foundation
-import Testing
 @testable import PhotosAutomation
+import Testing
 
-@Suite struct PhotoServiceOrganizeTests {
+struct PhotoServiceOrganizeTests {
     private let store = FakePhotoLibraryStore()
     private var service: PhotoService {
         PhotoService(store: store, runner: FakeAppleScriptRunner())
@@ -111,7 +111,7 @@ import Testing
     }
 }
 
-@Suite struct AvailableURLTests {
+struct AvailableURLTests {
     @Test func dedupesExistingFilenames() throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("photos-automation-dedupe-\(UUID().uuidString)")

@@ -23,14 +23,14 @@ extension PhotoServiceError: LocalizedError {
     /// Human-readable description suitable for logs and user display.
     public var errorDescription: String? {
         switch self {
-        case .invalidInput(let message):
-            return "Invalid input: \(message)"
-        case .notFound(let what):
-            return "Not found: \(what)"
+        case let .invalidInput(message):
+            "Invalid input: \(message)"
+        case let .notFound(what):
+            "Not found: \(what)"
         case .permissionDenied:
-            return "Photos library access denied — grant access in System Settings → Privacy & Security → Photos"
-        case .operationFailed(let message):
-            return "Photos operation failed: \(message)"
+            "Photos library access denied — grant access in System Settings → Privacy & Security → Photos"
+        case let .operationFailed(message):
+            "Photos operation failed: \(message)"
         }
     }
 }

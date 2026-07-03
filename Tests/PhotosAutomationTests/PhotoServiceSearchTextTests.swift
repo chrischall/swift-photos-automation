@@ -1,8 +1,8 @@
 import Foundation
-import Testing
 @testable import PhotosAutomation
+import Testing
 
-@Suite struct PhotoServiceSearchTextTests {
+struct PhotoServiceSearchTextTests {
     @Test func rejectsEmptyQuery() async {
         let service = PhotoService(store: FakePhotoLibraryStore(), runner: FakeAppleScriptRunner())
         await #expect(throws: PhotoServiceError.invalidInput("query must not be empty")) {

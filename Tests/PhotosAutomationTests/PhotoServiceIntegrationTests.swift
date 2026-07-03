@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import PhotosAutomation
+import Testing
 
 /// End-to-end tests against the user's real Photos library.
 ///
@@ -74,7 +74,9 @@ struct PhotoServiceIntegrationTests {
         #expect(results.count <= 5)
         let favorites = try await Self.makeService()
             .search(criteria: PhotoSearchCriteria(favoritesOnly: true, limit: 5))
-        #expect(favorites.allSatisfy { $0.isFavorite })
+        // Hoisted out of #expect: the macro can't expand a key-path arg.
+        let allFavorited = favorites.allSatisfy(\.isFavorite)
+        #expect(allFavorited)
     }
 
     /// PhotoKit-only end-to-end: import → album → favorite → rendition →

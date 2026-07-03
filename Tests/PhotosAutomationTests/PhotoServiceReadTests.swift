@@ -1,8 +1,8 @@
 import Foundation
-import Testing
 @testable import PhotosAutomation
+import Testing
 
-@Suite struct PhotoServiceReadTests {
+struct PhotoServiceReadTests {
     private func makeService(
         store: FakePhotoLibraryStore = FakePhotoLibraryStore(),
         runner: FakeAppleScriptRunner = FakeAppleScriptRunner()
