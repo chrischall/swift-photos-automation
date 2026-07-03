@@ -354,7 +354,9 @@ public struct PhotoKitStore: PhotoLibraryStore {
                 "imported \(createdIds.value.count) of \(urls.count) files — unsupported format?"
             )
         }
-        return try await assets(ids: createdIds.value)
+        let fetched = try await assets(ids: createdIds.value)
+        let byId = Dictionary(fetched.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return createdIds.value.compactMap { byId[$0] }
     }
 
     // MARK: - Existence checks

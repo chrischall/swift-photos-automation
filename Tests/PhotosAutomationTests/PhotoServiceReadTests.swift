@@ -62,6 +62,12 @@ struct PhotoServiceReadTests {
         }
     }
 
+    @Test func searchRejectsBlankAlbumId() async {
+        await #expect(throws: PhotoServiceError.invalidInput("albumId must not be empty")) {
+            _ = try await self.makeService().search(criteria: PhotoSearchCriteria(albumId: "  "))
+        }
+    }
+
     // MARK: asset(id:)
 
     @Test func assetRejectsEmptyId() async {

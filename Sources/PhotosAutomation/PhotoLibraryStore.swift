@@ -24,9 +24,9 @@ public protocol PhotoLibraryStore: Sendable {
     func imageData(id: String, maxDimension: Int) async throws -> Data
     /// Creates a new top-level album.
     func createAlbum(title: String) async throws -> PhotoAlbum
-    /// Deletes the album (not its assets). Used by integration-test
-    /// cleanup; asset deletion is deliberately unsupported (macOS shows a
-    /// blocking confirmation dialog).
+    /// Deletes the album (not its assets). **Shows a blocking system
+    /// confirmation dialog** — call only from interactive contexts, never
+    /// an unattended run. Not surfaced through ``PhotoService``.
     func deleteAlbum(id: String) async throws
     /// Adds the assets to the album.
     func add(ids: [String], toAlbum albumId: String) async throws

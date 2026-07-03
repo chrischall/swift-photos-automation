@@ -87,9 +87,14 @@ dictionary exposes identically — one ID works across both transports.
 
 ## Capabilities & limits
 
-- **No deletion, of assets or albums.** PhotoKit deletion — of assets
-  *and* of albums — always shows a blocking system confirmation dialog,
-  which would hang an unattended caller. Deliberately omitted.
+- **No asset deletion.** PhotoKit asset deletion always shows a blocking
+  system confirmation dialog, which would hang an unattended caller.
+  Deliberately omitted.
+- **Album deletion exists but isn't surfaced through `PhotoService`.**
+  `PhotoKitStore.deleteAlbum(id:)` is public for consumers with an
+  interactive UI, but it too shows a blocking confirmation dialog, so
+  it's intentionally left off the `PhotoService` facade and never used
+  by the test suite.
 - **Titles/descriptions/keywords are AppleScript-only.** PhotoKit cannot
   read or write them. They are `nil` in list/search results and hydrated
   only by `asset(id:)`; hydration is best-effort (stays `nil` if

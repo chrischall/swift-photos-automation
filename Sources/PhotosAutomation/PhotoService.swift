@@ -17,10 +17,9 @@ public struct PhotoService: Sendable {
     /// Creates a service.
     ///
     /// - Parameters:
-    ///   - store: PhotoKit access. Defaults to ``PhotoKitStore`` in
-    ///     production once Task 9 lands; until then callers pass one in.
+    ///   - store: PhotoKit access. Defaults to ``PhotoKitStore``.
     ///   - runner: AppleScript access. Defaults to ``NSAppleScriptRunner``.
-    public init(store: PhotoLibraryStore, runner: AppleScriptRunner = NSAppleScriptRunner()) {
+    public init(store: PhotoLibraryStore = PhotoKitStore(), runner: AppleScriptRunner = NSAppleScriptRunner()) {
         self.store = store
         self.runner = runner
     }
@@ -49,6 +48,9 @@ public struct PhotoService: Sendable {
     /// album), newest first. For free-text search use ``searchText(_:limit:)``.
     public func search(criteria: PhotoSearchCriteria) async throws -> [PhotoAsset] {
         try Self.validatePositive(criteria.limit)
+        if let albumId = criteria.albumId {
+            try Self.validateNonEmpty(albumId, name: "albumId")
+        }
         return try await store.assets(matching: criteria)
     }
 
