@@ -270,11 +270,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
 
     public func deleteAlbum(id: String) async throws {
         try await ensureAuthorized()
-        guard PHAssetCollection.fetchAssetCollections(withLocalIdentifiers: [id], options: nil)
-            .firstObject != nil
-        else {
-            throw PhotoServiceError.notFound("album \(id)")
-        }
+        try ensureAlbumExists(id)
         try await performChanges {
             let collections = PHAssetCollection.fetchAssetCollections(withLocalIdentifiers: [id], options: nil)
             PHAssetCollectionChangeRequest.deleteAssetCollections(collections)
@@ -284,7 +280,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
     public func add(ids: [String], toAlbum albumId: String) async throws {
         try await ensureAuthorized()
         try ensureAssetsExist(ids)
-        try ensureAlbumExists(albumId)
+        try ensureAlbumEditable(albumId, operation: .addContent)
         try await performChanges {
             guard let collection = PHAssetCollection.fetchAssetCollections(
                 withLocalIdentifiers: [albumId], options: nil
@@ -298,7 +294,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
     public func remove(ids: [String], fromAlbum albumId: String) async throws {
         try await ensureAuthorized()
         try ensureAssetsExist(ids)
-        try ensureAlbumExists(albumId)
+        try ensureAlbumEditable(albumId, operation: .removeContent)
         try await performChanges {
             guard let collection = PHAssetCollection.fetchAssetCollections(
                 withLocalIdentifiers: [albumId], options: nil
@@ -322,7 +318,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
     public func importFiles(urls: [URL], toAlbum albumId: String?) async throws -> [PhotoAsset] {
         try await ensureAuthorized()
         if let albumId {
-            try ensureAlbumExists(albumId)
+            try ensureAlbumEditable(albumId, operation: .addContent)
         }
         let createdIds = Locked<[String]>([])
         try await performChanges {
@@ -375,6 +371,20 @@ public struct PhotoKitStore: PhotoLibraryStore {
             .firstObject != nil
         else {
             throw PhotoServiceError.notFound("album \(albumId)")
+        }
+    }
+
+    /// Throws when the album cannot be edited (e.g. a smart album) —
+    /// ``PHAssetCollectionChangeRequest`` would silently return `nil` for it
+    /// inside the change block.
+    private func ensureAlbumEditable(_ albumId: String, operation: PHCollectionEditOperation) throws {
+        guard let collection = PHAssetCollection.fetchAssetCollections(withLocalIdentifiers: [albumId], options: nil)
+            .firstObject
+        else {
+            throw PhotoServiceError.notFound("album \(albumId)")
+        }
+        guard collection.canPerform(operation) else {
+            throw PhotoServiceError.operationFailed("album \(albumId) does not allow this operation")
         }
     }
 }
