@@ -150,7 +150,11 @@ public struct PhotoKitStore: PhotoLibraryStore {
 
     public func exportOriginals(ids: [String], to directory: URL) async throws -> [URL] {
         try await ensureAuthorized()
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        } catch {
+            throw PhotoServiceError.operationFailed(error.localizedDescription)
+        }
         var written: [URL] = []
         for id in ids {
             guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil).firstObject else {
