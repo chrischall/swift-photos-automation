@@ -138,4 +138,53 @@ public struct PhotoService: Sendable {
         let keywords = fields[2].split(separator: ",").map(String.init)
         return (title, description, keywords.isEmpty ? nil : keywords)
     }
+
+    // MARK: - Free-text search
+
+    /// Free-text search via Photos' own search engine (AppleScript
+    /// `search for`), which matches titles, keywords, and detected content
+    /// — none of which PhotoKit predicates can reach.
+    ///
+    /// Returned assets preserve Photos' relevance order. IDs that Photos
+    /// returns but PhotoKit cannot resolve are silently omitted.
+    ///
+    /// - Parameters:
+    ///   - query: Search text; must not be blank.
+    ///   - limit: Maximum results; must be positive.
+    public func searchText(_ query: String, limit: Int = 25) async throws -> [PhotoAsset] {
+        let query = try Self.validateNonEmpty(query, name: "query")
+        try Self.validatePositive(limit)
+        let output = try await runner.run(source: Self.searchScript(query: query, limit: limit))
+        let ids = Self.parseIdLines(output)
+        guard !ids.isEmpty else { return [] }
+        let assets = try await store.assets(ids: ids)
+        let byId = Dictionary(assets.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return ids.compactMap { byId[$0] }
+    }
+
+    /// Script running Photos' `search for` and returning matched ids,
+    /// one per line, capped at `limit`.
+    static func searchScript(query: String, limit: Int) -> String {
+        let escaped = escapeForAppleScript(query)
+        return """
+        tell application "Photos"
+            set found to search for "\(escaped)"
+            set out to ""
+            set n to count of found
+            if n > \(limit) then set n to \(limit)
+            repeat with i from 1 to n
+                set out to out & (id of item i of found) & linefeed
+            end repeat
+            return out
+        end tell
+        """
+    }
+
+    /// Splits script output into trimmed, non-empty id lines.
+    static func parseIdLines(_ output: String) -> [String] {
+        output
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
 }
