@@ -187,4 +187,58 @@ public struct PhotoService: Sendable {
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
     }
+
+    // MARK: - Metadata writes (AppleScript)
+
+    /// Sets the asset's title ("name" in Photos). Pass `""` to clear.
+    ///
+    /// PhotoKit cannot write titles — this goes through Photos.app via
+    /// AppleScript, so it requires Automation permission for Photos.
+    /// - Throws: ``PhotoServiceError/invalidInput(_:)`` for a blank id;
+    ///   ``AppleScriptError`` when Photos.app rejects the script.
+    public func setTitle(id: String, _ title: String) async throws {
+        let id = try Self.validateNonEmpty(id, name: "id")
+        _ = try await runner.run(source: Self.setTitleScript(id: id, title: title))
+    }
+
+    /// Sets the asset's description/caption. Pass `""` to clear.
+    ///
+    /// Same transport and error behavior as ``setTitle(id:_:)``.
+    public func setDescription(id: String, _ description: String) async throws {
+        let id = try Self.validateNonEmpty(id, name: "id")
+        _ = try await runner.run(source: Self.setDescriptionScript(id: id, description: description))
+    }
+
+    /// Replaces the asset's keyword list. Pass `[]` to clear.
+    ///
+    /// Same transport and error behavior as ``setTitle(id:_:)``.
+    public func setKeywords(id: String, _ keywords: [String]) async throws {
+        let id = try Self.validateNonEmpty(id, name: "id")
+        _ = try await runner.run(source: Self.setKeywordsScript(id: id, keywords: keywords))
+    }
+
+    static func setTitleScript(id: String, title: String) -> String {
+        """
+        tell application "Photos"
+            set name of media item id "\(escapeForAppleScript(id))" to "\(escapeForAppleScript(title))"
+        end tell
+        """
+    }
+
+    static func setDescriptionScript(id: String, description: String) -> String {
+        """
+        tell application "Photos"
+            set description of media item id "\(escapeForAppleScript(id))" to "\(escapeForAppleScript(description))"
+        end tell
+        """
+    }
+
+    static func setKeywordsScript(id: String, keywords: [String]) -> String {
+        let list = keywords.map { "\"\(escapeForAppleScript($0))\"" }.joined(separator: ", ")
+        return """
+        tell application "Photos"
+            set keywords of media item id "\(escapeForAppleScript(id))" to {\(list)}
+        end tell
+        """
+    }
 }
