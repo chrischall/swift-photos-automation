@@ -3,3 +3,6 @@
 .swiftpm/
 *.xcodeproj
 DerivedData/
+
+# Subagent-driven-development scratch (briefs, reports, review packages)
+.superpowers/
