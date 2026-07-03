@@ -268,6 +268,12 @@ public struct PhotoKitStore: PhotoLibraryStore {
         )
     }
 
+    /// Deletes the album (not its assets).
+    ///
+    /// > Important: macOS shows a **blocking confirmation dialog** for this
+    /// > operation, so it cannot run unattended — the `performChanges`
+    /// > completion won't fire until the user responds. Call it only from
+    /// > interactive contexts; the integration suite deliberately never does.
     public func deleteAlbum(id: String) async throws {
         try await ensureAuthorized()
         try ensureAlbumExists(id)
