@@ -43,15 +43,6 @@ public struct NSAppleScriptRunner: AppleScriptRunner {
     /// per-call `NSAppleScript` object.
     public init() {}
 
-    /// Compiles and executes `source`, returning the scalar result as a
-    /// `String`.
-    ///
-    /// - Parameter source: AppleScript source code.
-    /// - Returns: `descriptor.stringValue` of the final descriptor, or
-    ///   `""` when the result cannot be coerced to a string.
-    /// - Throws: ``AppleScriptError/compile(_:)`` when the source cannot
-    ///   be constructed; ``AppleScriptError/runtime(_:)`` when
-    ///   AppleScript reports an error at execution time.
     /// Hops to the main thread and runs `body` there.
     ///
     /// The single seam through which every `NSAppleScript` invocation
@@ -64,6 +55,15 @@ public struct NSAppleScriptRunner: AppleScriptRunner {
         try await MainActor.run(body: body)
     }
 
+    /// Compiles and executes `source`, returning the scalar result as a
+    /// `String`.
+    ///
+    /// - Parameter source: AppleScript source code.
+    /// - Returns: `descriptor.stringValue` of the final descriptor, or
+    ///   `""` when the result cannot be coerced to a string.
+    /// - Throws: ``AppleScriptError/compile(_:)`` when the source cannot
+    ///   be constructed; ``AppleScriptError/runtime(_:)`` when
+    ///   AppleScript reports an error at execution time.
     public func run(source: String) async throws -> String {
         try await Self.onMainThread { () throws -> String in
             guard let script = NSAppleScript(source: source) else {
