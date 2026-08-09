@@ -30,3 +30,49 @@ struct NSAppleScriptRunnerTests {
         }
     }
 }
+
+/// Thread-affinity tests for `NSAppleScriptRunner`.
+///
+/// `NSAppleScript` must execute on the **main thread**. A script that
+/// targets another application (`tell application "Photos" …`) sends an
+/// Apple Event and waits for the reply via Carbon's
+/// `AEDefaultActiveProc` → `GetNextEventMatchingMask`, which pumps only
+/// the *main* thread's event queue — where the reply is delivered. Off
+/// the main thread the reply goes unserviced and the call stalls: ~32s
+/// measured for a script that takes ~0.1s done correctly, and on another
+/// run no return at all before a 200s timeout killed it.
+///
+/// Self-contained scripts send no Apple Event and succeed from any
+/// thread, so the rest of the suite cannot catch this. These assert the
+/// invariant directly and need neither Photos.app nor an Automation
+/// grant.
+@Suite("NSAppleScriptRunner thread affinity")
+struct NSAppleScriptRunnerThreadAffinityTests {
+    @Test("script execution is confined to the main thread")
+    func executesOnMainThread() async {
+        let ranOnMain = await NSAppleScriptRunner.onMainThread { Thread.isMainThread }
+        #expect(
+            ranOnMain,
+            """
+            NSAppleScript must execute on the main thread — Apple Event \
+            replies are delivered to the main run loop, so running it \
+            elsewhere stalls every `tell application` script.
+            """
+        )
+    }
+
+    @Test("the result of the main-thread hop reaches the caller")
+    func propagatesResult() async {
+        let value = await NSAppleScriptRunner.onMainThread { 6 * 7 }
+        #expect(value == 42)
+    }
+
+    @Test("errors thrown on the main thread propagate to the caller")
+    func propagatesThrow() async {
+        await #expect(throws: AppleScriptError.self) {
+            try await NSAppleScriptRunner.onMainThread {
+                throw AppleScriptError.compile("boom")
+            }
+        }
+    }
+}
