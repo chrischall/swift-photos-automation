@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/chrischall/swift-photos-automation/compare/v0.1.2...v0.1.3) (2026-08-15)
+
+
+### Documentation
+
+* mark the VERSION file superseded in the scaffolding plan and spec ([#13](https://github.com/chrischall/swift-photos-automation/issues/13)) ([c810874](https://github.com/chrischall/swift-photos-automation/commit/c81087479040af72b2c0a0e39ad338df80fdf41c))
+
 ## [0.1.2](https://github.com/chrischall/swift-photos-automation/compare/v0.1.1...v0.1.2) (2026-08-09)
 
 
