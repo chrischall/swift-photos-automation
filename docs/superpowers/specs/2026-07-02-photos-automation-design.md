@@ -12,7 +12,16 @@ A Swift library for reading and writing the Apple Photos library on macOS, to be
 - `swift-tools-version: 6.0`, `platforms: [.macOS(.v14)]`, Swift 6 strict concurrency.
 - Single library product **`PhotosAutomation`**, flat layout: `Sources/PhotosAutomation/*.swift`, `Tests/PhotosAutomationTests/*.swift`.
 - Zero external dependencies (matches swift-notes-automation).
-- Standard repo scaffolding: MIT LICENSE (Chris Hall), README with badges (CI, SPI, MIT) and Install / Quickstart / API table / Permissions / Testing sections, `.spi.yml` (DocC for `PhotosAutomation`), `.swiftformat` (swift 6.0, 120 col, patternlet hoist, wrap disabled), `CLAUDE.md`, `VERSION`, `CHANGELOG.md`, release-please config, `.github/workflows` (ci / release-please / auto-merge / pr-auto-review / claude) on `macos-15` via the `chrischall/workflows` reusable pipeline, dependabot, Conventional-Commit PR titles.
+- Standard repo scaffolding: MIT LICENSE (Chris Hall), README with badges (CI, SPI, MIT) and Install / Quickstart / API table / Permissions / Testing sections, `.spi.yml` (DocC for `PhotosAutomation`), `.swiftformat` (swift 6.0, 120 col, patternlet hoist, wrap disabled), `CLAUDE.md`, ~~`VERSION`~~ (see correction below), `CHANGELOG.md`, release-please config, `.github/workflows` (ci / release-please / auto-merge / pr-auto-review / claude) on `macos-15` via the `chrischall/workflows` reusable pipeline, dependabot, Conventional-Commit PR titles.
+
+> **Correction (2026-08-15):** the `VERSION` file listed above was never
+> load-bearing and has since been deleted (#12). release-please is configured
+> `release-type: simple`, whose updater targets `version.txt` — not `VERSION`
+> — so the file never moved off its seed value while
+> `.release-please-manifest.json` tracked every release correctly. Four repos
+> in this fleet were scaffolded with it and all four went stale. **Do not
+> create it when reusing this spec.**
+
 
 ## Architecture — hybrid with two transports
 

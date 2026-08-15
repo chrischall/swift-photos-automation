@@ -52,7 +52,7 @@
 | `Tests/PhotosAutomationTests/PhotoServiceOrganizeTests.swift` | album ops, favorite, export, imageData, import |
 | `Tests/PhotosAutomationTests/NSAppleScriptRunnerTests.swift` | Live bridge tests (env-gated) |
 | `Tests/PhotosAutomationTests/PhotoServiceIntegrationTests.swift` | Real-library end-to-end (env-gated) |
-| `README.md`, `CLAUDE.md`, `LICENSE`, `VERSION`, `CHANGELOG.md`, `.spi.yml`, `.swiftformat`, `.gitignore` | Repo scaffolding |
+| `README.md`, `CLAUDE.md`, `LICENSE`, ~~`VERSION`~~, `CHANGELOG.md`, `.spi.yml`, `.swiftformat`, `.gitignore` | Repo scaffolding (`VERSION` superseded — see Task 13) |
 | `release-please-config.json`, `.release-please-manifest.json`, `.github/**` | Release + CI scaffolding |
 
 ---
@@ -2427,10 +2427,19 @@ git commit -m "test: add env-gated integration suite against the real Photos lib
 
 ### Task 13: Repo scaffolding — README, CLAUDE.md, CI, release automation
 
+> **Correction (2026-08-15):** `VERSION` below was never load-bearing and has
+> since been deleted (#12). release-please here is `release-type: simple`,
+> whose updater targets `version.txt` — not `VERSION` — so the file sat at its
+> seed value through every release while `.release-please-manifest.json` did
+> the real tracking. The same scaffolding put a stale `VERSION` in four repos
+> (`swift-photos-automation`, `swift-mail-automation`, `swift-notes-automation`,
+> `apple-swift-mcp`), each cleaned up separately. **Skip it when reusing this
+> plan; `.release-please-manifest.json` is the source of truth.**
+
 **Files:**
 - Create: `README.md`
 - Create: `CLAUDE.md`
-- Create: `VERSION`
+- ~~Create: `VERSION`~~ — superseded, see correction above
 - Create: `CHANGELOG.md`
 - Create: `release-please-config.json`
 - Create: `.release-please-manifest.json`
@@ -2489,7 +2498,7 @@ Then verify none of them embeds the string `notes`: `grep -ril notes .github/ ||
 }
 ```
 
-- [ ] **Step 3: Write `.release-please-manifest.json`, `VERSION`, `CHANGELOG.md`**
+- [ ] **Step 3: Write `.release-please-manifest.json`, ~~`VERSION`~~, `CHANGELOG.md`**
 
 `.release-please-manifest.json`:
 ```json
@@ -2498,10 +2507,10 @@ Then verify none of them embeds the string `notes`: `grep -ril notes .github/ ||
 }
 ```
 
-`VERSION`:
-```
-0.1.0
-```
+~~`VERSION`~~ — **skip this file.** See the correction under Task 13: it is
+never read, and release-please's `simple` strategy updates `version.txt`
+rather than `VERSION`, so it only ever goes stale.
+
 
 `CHANGELOG.md`:
 ```markdown
