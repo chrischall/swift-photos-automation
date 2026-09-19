@@ -1,10 +1,58 @@
 name: release-please
 
+# Thin stub: release-please itself runs in chrischall/workflows'
+# reusable-release-please.yml, which reads this repo's own
+# release-please-config.json (`release-type: simple`) and
+# .release-please-manifest.json exactly as the copy here used to.
+#
+# WHY THIS REPO WAS CONVERTED. `release-please.yml` was copied into 81 repos
+# and drifted into 18 variants, so a fix to release behaviour was an 81-repo
+# sweep. On 2026-09-14 a transient GitHub API error lost release-please's
+# `release_created` output in three sibling repos AFTER each had already cut
+# its tag and GitHub Release; their publish jobs are gated on that flag, so
+# they skipped, and re-running could never finish them — release-please then
+# correctly reports the release as already existing and sets the flag false
+# again. `fetchproxy` had carried a `republish_tag` escape hatch for exactly
+# that; the copies did not (chrischall/workflows#283).
+#
+# THIS REPO PUBLISHES NOTHING, and that is the whole of its release. It is a
+# SwiftPM library resolved straight from the git tag, so there is no npm
+# package, no registry and no artifact to ship afterwards: the tag, the GitHub
+# Release and the CHANGELOG that release-please writes ARE the release. So
+# there is no publish job to keep behind here — nothing binds to this repo's
+# own OIDC identity — and nothing consumes the reusable workflow's `publish`,
+# `tag` or `version` outputs.
+#
+# Which makes `republish_tag` below INERT today: dispatching it skips
+# release-please, validates that the named tag exists and resolves its
+# version, and then the run ends, because there is nothing downstream to
+# re-fire. It is carried anyway, so the input is already wired the day this
+# repo grows something to publish, and so this stub reads the same as the rest
+# of the fleet's. A release stranded the way those three were cannot happen
+# here in the first place: a lost `release_created` costs nothing when no
+# later job was gated on it.
+#
+# What the conversion ADDS, beyond sharing the escape hatch: the reusable
+# workflow amends the release PR's CHANGELOG and its description to credit
+# external contributors, which the copy in this file never did.
+
 on:
   push:
     branches: [main]
+  # `republish_tag` names an EXISTING tag whose publish never ran. Blank on
+  # every ordinary run. It lives in the caller rather than in the reusable
+  # workflow because a called workflow cannot declare its caller's triggers.
   workflow_dispatch:
+    inputs:
+      republish_tag:
+        description: 'Existing tag to re-publish (e.g. v1.2.3). Blank = ordinary run.'
+        required: false
+        type: string
+        default: ''
 
+# A called workflow can only narrow what the caller grants, never widen it, so
+# these stay here: release-please needs contents:write for the tag and the
+# Release, and pull-requests:write for the release PR.
 permissions:
   contents: write
   pull-requests: write
@@ -15,10 +63,8 @@ concurrency:
 
 jobs:
   release-please:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: googleapis/release-please-action@v5
-        with:
-          token: ${{ secrets.RELEASE_PAT }}
-          config-file: release-please-config.json
-          manifest-file: .release-please-manifest.json
+    uses: chrischall/workflows/.github/workflows/reusable-release-please.yml@main
+    with:
+      republish_tag: ${{ inputs.republish_tag }}
+    secrets:
+      release_pat: ${{ secrets.RELEASE_PAT }}
