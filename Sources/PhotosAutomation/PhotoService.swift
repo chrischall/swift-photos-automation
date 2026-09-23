@@ -1,4 +1,5 @@
 import Foundation
+import UniformTypeIdentifiers
 
 /// High-level facade over the Photos library.
 ///
@@ -104,7 +105,19 @@ public struct PhotoService: Sendable {
             .replacingOccurrences(of: "\"", with: "\\\"")
     }
 
-    /// Script returning `title<tab>description<tab>kw1,kw2` for one asset.
+    /// Field separator in ``metadataScript(id:)`` output: ASCII 30
+    /// (record separator). Control characters cannot come from normal
+    /// user input, unlike the tab or comma a title, description, or
+    /// keyword may legitimately contain.
+    static let metadataFieldSeparator = "\u{1E}"
+
+    /// Keyword separator in ``metadataScript(id:)`` output: ASCII 31
+    /// (unit separator).
+    static let metadataKeywordSeparator = "\u{1F}"
+
+    /// Script returning `title<RS>description<RS>kw1<US>kw2` for one asset,
+    /// where RS/US are ``metadataFieldSeparator`` and
+    /// ``metadataKeywordSeparator``.
     ///
     /// `missing value` fields are coerced to `""` inside the script so the
     /// Swift-side parser can rely on a clean three-field line.
@@ -120,11 +133,11 @@ public struct PhotoService: Sendable {
             set kl to ""
             set kws to keywords of m
             if kws is not missing value then
-                set AppleScript's text item delimiters to ","
+                set AppleScript's text item delimiters to (character id 31)
                 set kl to kws as text
                 set AppleScript's text item delimiters to ""
             end if
-            return t & tab & d & tab & kl
+            return t & (character id 30) & d & (character id 30) & kl
         end tell
         """
     }
@@ -133,11 +146,11 @@ public struct PhotoService: Sendable {
     /// a malformed line (wrong field count) yields all-`nil` — the caller
     /// treats metadata as best-effort.
     static func parseMetadataLine(_ line: String) -> (title: String?, description: String?, keywords: [String]?) {
-        let fields = line.components(separatedBy: "\t")
+        let fields = line.components(separatedBy: metadataFieldSeparator)
         guard fields.count == 3 else { return (nil, nil, nil) }
         let title = fields[0].isEmpty ? nil : fields[0]
         let description = fields[1].isEmpty ? nil : fields[1]
-        let keywords = fields[2].split(separator: ",").map(String.init)
+        let keywords = fields[2].components(separatedBy: metadataKeywordSeparator).filter { !$0.isEmpty }
         return (title, description, keywords.isEmpty ? nil : keywords)
     }
 
@@ -252,18 +265,19 @@ public struct PhotoService: Sendable {
         return try await store.createAlbum(title: title)
     }
 
-    /// Adds assets to an album.
+    /// Adds assets to an album. Repeated ids are collapsed.
     public func add(ids: [String], toAlbum albumId: String) async throws {
-        try Self.validateIds(ids)
+        let ids = try Self.validateIds(ids)
         let albumId = try Self.validateNonEmpty(albumId, name: "albumId")
-        try await store.add(ids: ids, toAlbum: albumId)
+        try await store.add(ids: Self.uniqued(ids), toAlbum: albumId)
     }
 
     /// Removes assets from an album (the assets stay in the library).
+    /// Repeated ids are collapsed.
     public func remove(ids: [String], fromAlbum albumId: String) async throws {
-        try Self.validateIds(ids)
+        let ids = try Self.validateIds(ids)
         let albumId = try Self.validateNonEmpty(albumId, name: "albumId")
-        try await store.remove(ids: ids, fromAlbum: albumId)
+        try await store.remove(ids: Self.uniqued(ids), fromAlbum: albumId)
     }
 
     /// Sets or clears the favorite flag on an asset.
@@ -292,14 +306,16 @@ public struct PhotoService: Sendable {
     }
 
     /// Imports image/video files into the library, optionally adding them
-    /// to an album. Every file must exist.
+    /// to an album. Every file must exist, be a regular file, and have an
+    /// image or video type — all checked up front, before the library is
+    /// touched, so one bad file cannot leave a partial import behind.
     /// - Returns: The created assets.
     public func importFiles(urls: [URL], albumId: String? = nil) async throws -> [PhotoAsset] {
         guard !urls.isEmpty else {
             throw PhotoServiceError.invalidInput("urls must not be empty")
         }
-        for url in urls where !FileManager.default.fileExists(atPath: url.path) {
-            throw PhotoServiceError.invalidInput("file does not exist: \(url.path)")
+        for url in urls {
+            try Self.validateImportable(url)
         }
         if let albumId {
             _ = try Self.validateNonEmpty(albumId, name: "albumId")
@@ -308,12 +324,39 @@ public struct PhotoService: Sendable {
     }
 
     /// Validates an id array: non-empty, no blank members.
-    static func validateIds(_ ids: [String]) throws {
+    /// - Returns: The ids, trimmed.
+    @discardableResult
+    static func validateIds(_ ids: [String]) throws -> [String] {
         guard !ids.isEmpty else {
             throw PhotoServiceError.invalidInput("ids must not be empty")
         }
-        guard ids.allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else {
+        let trimmed = ids.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        guard trimmed.allSatisfy({ !$0.isEmpty }) else {
             throw PhotoServiceError.invalidInput("ids must not contain blank values")
+        }
+        return trimmed
+    }
+
+    /// Drops repeated ids, keeping the first occurrence's position.
+    static func uniqued(_ ids: [String]) -> [String] {
+        var seen = Set<String>()
+        return ids.filter { seen.insert($0).inserted }
+    }
+
+    /// Throws `.invalidInput` unless `url` is an existing regular file
+    /// whose extension maps to an image or video type.
+    static func validateImportable(_ url: URL) throws {
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
+            throw PhotoServiceError.invalidInput("file does not exist: \(url.path)")
+        }
+        guard !isDirectory.boolValue else {
+            throw PhotoServiceError.invalidInput("not a regular file: \(url.path)")
+        }
+        guard let type = UTType(filenameExtension: url.pathExtension),
+              type.conforms(to: .image) || type.conforms(to: .movie)
+        else {
+            throw PhotoServiceError.invalidInput("unsupported file type (not an image or video): \(url.path)")
         }
     }
 }

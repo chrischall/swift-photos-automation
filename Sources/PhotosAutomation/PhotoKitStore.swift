@@ -350,8 +350,11 @@ public struct PhotoKitStore: PhotoLibraryStore {
             createdIds.value = placeholders.map(\.localIdentifier)
         }
         guard createdIds.value.count == urls.count else {
+            // The change block already committed the ones that worked;
+            // name them so a caller can retry only the rest.
+            let created = createdIds.value.isEmpty ? "none" : createdIds.value.joined(separator: ", ")
             throw PhotoServiceError.operationFailed(
-                "imported \(createdIds.value.count) of \(urls.count) files — unsupported format?"
+                "imported \(createdIds.value.count) of \(urls.count) files — unsupported format? created ids: \(created)"
             )
         }
         let fetched = try await assets(ids: createdIds.value)
@@ -364,7 +367,8 @@ public struct PhotoKitStore: PhotoLibraryStore {
     /// Throws ``PhotoServiceError/notFound(_:)`` when any id is unknown.
     private func ensureAssetsExist(_ ids: [String]) throws {
         let fetch = PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil)
-        guard fetch.count == ids.count else {
+        // The fetch holds each asset once, so compare against distinct ids.
+        guard fetch.count == Set(ids).count else {
             var found = Set<String>()
             for i in 0 ..< fetch.count {
                 found.insert(fetch.object(at: i).localIdentifier)
