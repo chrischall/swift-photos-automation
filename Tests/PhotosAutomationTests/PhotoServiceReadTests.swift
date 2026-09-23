@@ -86,7 +86,7 @@ struct PhotoServiceReadTests {
         let store = FakePhotoLibraryStore()
         store.assetsById["A/L0/001"] = PhotoAsset(id: "A/L0/001")
         let runner = FakeAppleScriptRunner()
-        runner.queue("Sunset\tGolden hour\tbeach,sunset")
+        runner.queue("Sunset\u{1E}Golden hour\u{1E}beach\u{1F}sunset")
         let asset = try await makeService(store: store, runner: runner).asset(id: "A/L0/001")
         #expect(asset.title == "Sunset")
         #expect(asset.itemDescription == "Golden hour")
@@ -99,7 +99,7 @@ struct PhotoServiceReadTests {
         let store = FakePhotoLibraryStore()
         store.assetsById["A"] = PhotoAsset(id: "A")
         let runner = FakeAppleScriptRunner()
-        runner.queue("\t\t")
+        runner.queue("\u{1E}\u{1E}")
         let asset = try await makeService(store: store, runner: runner).asset(id: "A")
         #expect(asset.title == nil)
         #expect(asset.itemDescription == nil)
@@ -123,6 +123,26 @@ struct PhotoServiceReadTests {
         #expect(meta.title == nil)
         #expect(meta.description == nil)
         #expect(meta.keywords == nil)
+    }
+
+    @Test func parseMetadataLineKeepsCommasInKeywords() {
+        let meta = PhotoService.parseMetadataLine("T\u{1E}D\u{1E}Smith, John\u{1F}beach")
+        #expect(meta.keywords == ["Smith, John", "beach"])
+    }
+
+    @Test func parseMetadataLineKeepsTabsInTitleAndDescription() {
+        let meta = PhotoService.parseMetadataLine("Title\twith tab\u{1E}pasted\ttext\u{1E}kw")
+        #expect(meta.title == "Title\twith tab")
+        #expect(meta.description == "pasted\ttext")
+        #expect(meta.keywords == ["kw"])
+    }
+
+    @Test func metadataScriptUsesControlCharacterDelimiters() {
+        let script = PhotoService.metadataScript(id: "A")
+        #expect(script.contains("character id 30"))
+        #expect(script.contains("character id 31"))
+        #expect(!script.contains("tab & d & tab"))
+        #expect(!script.contains(#"delimiters to ",""#))
     }
 
     @Test func escapeForAppleScript() {

@@ -41,6 +41,17 @@ struct PhotoServiceOrganizeTests {
         #expect(store.calls == [#"add(["a"], toAlbum: alb)"#, #"remove(["a"], fromAlbum: alb)"#])
     }
 
+    @Test func addAndRemoveDeduplicateIdsPreservingOrder() async throws {
+        try await service.add(ids: ["b", "a", "b", "a"], toAlbum: "alb")
+        try await service.remove(ids: ["a", "a"], fromAlbum: "alb")
+        #expect(store.calls == [#"add(["b", "a"], toAlbum: alb)"#, #"remove(["a"], fromAlbum: alb)"#])
+    }
+
+    @Test func addDeduplicatesAfterTrimming() async throws {
+        try await service.add(ids: ["a", " a "], toAlbum: "alb")
+        #expect(store.calls == [#"add(["a"], toAlbum: alb)"#])
+    }
+
     // MARK: favorite
 
     @Test func setFavoritePassesThrough() async throws {
@@ -96,6 +107,45 @@ struct PhotoServiceOrganizeTests {
         await #expect(throws: PhotoServiceError.invalidInput("file does not exist: /nonexistent/nope.png")) {
             _ = try await self.service.importFiles(urls: [missing])
         }
+    }
+
+    @Test func importRejectsDirectoryBeforeTouchingTheLibrary() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("photos-automation-dir-\(UUID().uuidString).png")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        await #expect(throws: PhotoServiceError.invalidInput("not a regular file: \(dir.path)")) {
+            _ = try await self.service.importFiles(urls: [dir])
+        }
+        #expect(store.calls.isEmpty)
+    }
+
+    @Test func importRejectsUnsupportedTypeBeforeTouchingTheLibrary() async throws {
+        let good = FileManager.default.temporaryDirectory
+            .appendingPathComponent("photos-automation-test-\(UUID().uuidString).png")
+        let bad = FileManager.default.temporaryDirectory
+            .appendingPathComponent("photos-automation-test-\(UUID().uuidString).txt")
+        try Data([0x89, 0x50]).write(to: good)
+        try Data("hi".utf8).write(to: bad)
+        defer {
+            try? FileManager.default.removeItem(at: good)
+            try? FileManager.default.removeItem(at: bad)
+        }
+        await #expect(
+            throws: PhotoServiceError.invalidInput("unsupported file type (not an image or video): \(bad.path)")
+        ) {
+            _ = try await self.service.importFiles(urls: [good, bad])
+        }
+        #expect(store.calls.isEmpty)
+    }
+
+    @Test func importAcceptsVideo() async throws {
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("photos-automation-test-\(UUID().uuidString).mov")
+        try Data([0x00]).write(to: tmp)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        _ = try await service.importFiles(urls: [tmp])
+        #expect(store.calls.count == 1)
     }
 
     @Test func importPassesThroughForExistingFile() async throws {
