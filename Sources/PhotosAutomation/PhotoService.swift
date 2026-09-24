@@ -290,7 +290,7 @@ public struct PhotoService: Sendable {
     /// `directory`, creating the directory if needed.
     /// - Returns: URLs of the written files, in input order.
     public func exportOriginals(ids: [String], to directory: URL) async throws -> [URL] {
-        try Self.validateIds(ids)
+        let ids = try Self.validateIds(ids)
         return try await store.exportOriginals(ids: ids, to: directory)
     }
 
@@ -325,7 +325,6 @@ public struct PhotoService: Sendable {
 
     /// Validates an id array: non-empty, no blank members.
     /// - Returns: The ids, trimmed.
-    @discardableResult
     static func validateIds(_ ids: [String]) throws -> [String] {
         guard !ids.isEmpty else {
             throw PhotoServiceError.invalidInput("ids must not be empty")

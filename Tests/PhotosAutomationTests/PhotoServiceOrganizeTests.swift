@@ -68,6 +68,12 @@ struct PhotoServiceOrganizeTests {
         #expect(urls == [dir.appendingPathComponent("IMG_1.HEIC")])
     }
 
+    @Test func exportForwardsTrimmedIds() async throws {
+        let dir = URL(fileURLWithPath: "/tmp/exports")
+        _ = try await service.exportOriginals(ids: [" a ", "b\n"], to: dir)
+        #expect(store.calls == [#"exportOriginals(["a", "b"], to: /tmp/exports)"#])
+    }
+
     @Test func exportRejectsEmptyIds() async {
         await #expect(throws: PhotoServiceError.invalidInput("ids must not be empty")) {
             _ = try await self.service.exportOriginals(ids: [], to: URL(fileURLWithPath: "/tmp"))
