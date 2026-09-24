@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.4](https://github.com/chrischall/swift-photos-automation/compare/v0.1.3...v0.1.4) (2026-09-24)
+
+
+### Bug Fixes
+
+* **export:** trim whitespace from asset ids before exporting originals ([#22](https://github.com/chrischall/swift-photos-automation/issues/22)) ([49ed124](https://github.com/chrischall/swift-photos-automation/commit/49ed12467a6e695cac33feeda563ff3546e409b7))
+* keep commas and tabs in metadata, collapse repeated ids, and check import files before importing ([#19](https://github.com/chrischall/swift-photos-automation/issues/19)) ([084709e](https://github.com/chrischall/swift-photos-automation/commit/084709e56091631d24d51ce6aa34f5e60151065a))
+
 ## [0.1.3](https://github.com/chrischall/swift-photos-automation/compare/v0.1.2...v0.1.3) (2026-08-15)
 
 
