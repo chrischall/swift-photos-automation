@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/chrischall/swift-photos-automation/compare/v0.1.4...v0.2.0) (2026-09-29)
+
+
+### Features
+
+* **photos:** copy shared albums into local albums ([#24](https://github.com/chrischall/swift-photos-automation/issues/24)) ([66ce70d](https://github.com/chrischall/swift-photos-automation/commit/66ce70d99ab89d2f4fc4fc29a9e3cb4a1625f05c))
+
 ## [0.1.4](https://github.com/chrischall/swift-photos-automation/compare/v0.1.3...v0.1.4) (2026-09-24)
 
 
