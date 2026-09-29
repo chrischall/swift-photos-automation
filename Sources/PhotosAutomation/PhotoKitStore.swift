@@ -15,8 +15,12 @@ import UniformTypeIdentifiers
 /// > bare executables (like apple-swift-mcp) embed one via the
 /// > `-sectcreate __TEXT __info_plist` linker flag.
 public struct PhotoKitStore: PhotoLibraryStore {
-    /// Creates a store. Stateless — all state lives in PhotoKit.
-    public init() {}
+    private let provenanceStore: PhotoCopyProvenanceStore
+
+    /// Creates a store with durable provenance for assets copied from shared albums.
+    public init(provenanceStore: PhotoCopyProvenanceStore = PhotoCopyProvenanceStore()) {
+        self.provenanceStore = provenanceStore
+    }
 
     // MARK: - Authorization
 
@@ -393,6 +397,26 @@ public struct PhotoKitStore: PhotoLibraryStore {
     }
 
     public func copyAlbum(sourceAlbumId: String, targetAlbumId: String, dryRun: Bool = false) async throws -> PhotoCopyResult {
+        try await copyAlbum(sourceAlbumId: sourceAlbumId, targetAlbumId: targetAlbumId, dryRun: dryRun, cleanPhantoms: false)
+    }
+
+    public func copyAlbum(
+        sourceAlbumId: String,
+        targetAlbumId: String,
+        dryRun: Bool,
+        cleanPhantoms: Bool
+    ) async throws -> PhotoCopyResult {
+        try await copyAlbum(sourceAlbumId: sourceAlbumId, targetAlbumId: targetAlbumId,
+                            dryRun: dryRun, cleanPhantoms: cleanPhantoms, progress: nil)
+    }
+
+    public func copyAlbum(
+        sourceAlbumId: String,
+        targetAlbumId: String,
+        dryRun: Bool,
+        cleanPhantoms: Bool,
+        progress: (@Sendable (PhotoCopyProgress) -> Void)?
+    ) async throws -> PhotoCopyResult {
         try await ensureAuthorized()
         guard PHPhotoLibrary.authorizationStatus(for: .readWrite) == .authorized else {
             throw PhotoServiceError.fullAccessRequired
@@ -426,13 +450,35 @@ public struct PhotoKitStore: PhotoLibraryStore {
             sourceValues[value.id] = value
             sourceObjects[value.id] = object
         }
-        let plan = PhotoService.albumCopyPlan(source: sourceAssets, target: targetAssets)
+        let plan = PhotoService.albumCopyPlan(source: sourceAssets, target: targetAssets,
+                                              provenance: provenanceStore.mappings())
+        let total = sourceAssets.count
         var result = PhotoCopyResult()
         result.skippedDuplicates = plan.duplicateCount
+        result.phantomCloudSharedCount = plan.phantomCloudSharedCount
         if dryRun {
             result.addedByReference = plan.referenceIDs.count
             result.importedAsCopies = plan.copyIDs.count
+            progress?(PhotoCopyProgress(total: total, done: total, remaining: 0, failed: 0))
             return result
+        }
+        progress?(PhotoCopyProgress(total: total, done: plan.duplicateCount, remaining: total - plan.duplicateCount, failed: 0))
+
+        if cleanPhantoms, plan.phantomCloudSharedCount > 0 {
+            try await performChanges {
+                let collections = PHAssetCollection.fetchAssetCollections(
+                    withLocalIdentifiers: [targetAlbumId], options: nil
+                )
+                guard let collection = collections.firstObject,
+                      let changeRequest = PHAssetCollectionChangeRequest(for: collection)
+                else { return }
+                let phantomFetch = PHAsset.fetchAssets(in: collection, options: Self.assetFetchOptions())
+                let phantoms = (0 ..< phantomFetch.count).compactMap { index -> PHAsset? in
+                    let asset = phantomFetch.object(at: index)
+                    return asset.sourceType.contains(.typeCloudShared) ? asset : nil
+                }
+                changeRequest.removeAssets(phantoms as NSArray)
+            }
         }
 
         struct StagedResource: @unchecked Sendable {
@@ -460,6 +506,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
             pendingReferenceIDs.removeAll()
             pendingCopies.removeAll()
             do {
+                let provenance = Locked<[String: String]>([:])
                 try await performChanges {
                     let targetFetch = PHAssetCollection.fetchAssetCollections(withLocalIdentifiers: [targetAlbumId], options: nil)
                     guard let target = targetFetch.firstObject, let albumRequest = PHAssetCollectionChangeRequest(for: target) else { return }
@@ -479,10 +526,14 @@ public struct PhotoKitStore: PhotoLibraryStore {
                             resourceOptions.originalFilename = resource.filename
                             request.addResource(with: resource.type, fileURL: resource.url, options: resourceOptions)
                         }
-                        if let placeholder = request.placeholderForCreatedAsset { placeholders.append(placeholder) }
+                        if let placeholder = request.placeholderForCreatedAsset {
+                            placeholders.append(placeholder)
+                            provenance.value[copy.id] = placeholder.localIdentifier
+                        }
                     }
                     albumRequest.addAssets(placeholders as NSArray)
                 }
+                try provenanceStore.record(provenance.value)
                 result.addedByReference += referenceIDs.count
                 result.importedAsCopies += copies.count
             } catch {
@@ -490,6 +541,8 @@ public struct PhotoKitStore: PhotoLibraryStore {
                     result.failures.append(PhotoCopyFailure(assetId: id, reason: error.localizedDescription))
                 }
             }
+            let done = result.addedByReference + result.importedAsCopies + result.skippedDuplicates + result.failures.count
+            progress?(PhotoCopyProgress(total: total, done: done, remaining: max(0, total - done), failed: result.failures.count))
         }
 
         for range in PhotoService.copyBatchRanges(count: plan.referenceIDs.count) {
@@ -512,6 +565,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
                     let selected = PhotoService.copyableResourceIndices(kinds).map { resources[$0] }
                     guard !selected.isEmpty else {
                         result.failures.append(PhotoCopyFailure(assetId: id, reason: "no original photo or video resources"))
+                        progress?(PhotoCopyProgress(total: total, done: result.addedByReference + result.importedAsCopies + result.skippedDuplicates + result.failures.count, remaining: max(0, total - result.addedByReference - result.importedAsCopies - result.skippedDuplicates - result.failures.count), failed: result.failures.count))
                         continue
                     }
                     var staged: [StagedResource] = []
@@ -530,6 +584,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
                                                     latitude: value.latitude, longitude: value.longitude, resources: staged))
                 } catch {
                     result.failures.append(PhotoCopyFailure(assetId: id, reason: error.localizedDescription))
+                    progress?(PhotoCopyProgress(total: total, done: result.addedByReference + result.importedAsCopies + result.skippedDuplicates + result.failures.count, remaining: max(0, total - result.addedByReference - result.importedAsCopies - result.skippedDuplicates - result.failures.count), failed: result.failures.count))
                 }
             }
             await commitBatch()

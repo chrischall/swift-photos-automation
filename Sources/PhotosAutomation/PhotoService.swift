@@ -32,42 +32,74 @@ public struct PhotoService: Sendable {
         try await store.listAlbums()
     }
 
-    public func copyAlbum(sourceAlbumId: String, targetAlbumId: String, dryRun: Bool = false) async throws -> PhotoCopyResult {
+    /// Copies an album into a regular local album. Cloud-shared members
+    /// already reported in the target are treated as phantom references,
+    /// never as duplicates. Set `cleanPhantoms` to remove those memberships
+    /// from the target before copying; `dryRun` reports them without edits.
+    public func copyAlbum(
+        sourceAlbumId: String,
+        targetAlbumId: String,
+        dryRun: Bool = false,
+        cleanPhantoms: Bool = false
+    ) async throws -> PhotoCopyResult {
+        try await copyAlbum(sourceAlbumId: sourceAlbumId, targetAlbumId: targetAlbumId,
+                            dryRun: dryRun, cleanPhantoms: cleanPhantoms, progress: nil)
+    }
+
+    public func copyAlbum(
+        sourceAlbumId: String,
+        targetAlbumId: String,
+        dryRun: Bool = false,
+        cleanPhantoms: Bool = false,
+        progress: (@Sendable (PhotoCopyProgress) -> Void)?
+    ) async throws -> PhotoCopyResult {
         let sourceAlbumId = try Self.validateNonEmpty(sourceAlbumId, name: "sourceAlbumId")
         let targetAlbumId = try Self.validateNonEmpty(targetAlbumId, name: "targetAlbumId")
-        return try await store.copyAlbum(sourceAlbumId: sourceAlbumId, targetAlbumId: targetAlbumId, dryRun: dryRun)
+        return try await store.copyAlbum(
+            sourceAlbumId: sourceAlbumId,
+            targetAlbumId: targetAlbumId,
+            dryRun: dryRun,
+            cleanPhantoms: cleanPhantoms,
+            progress: progress
+        )
     }
 
     struct AlbumCopyPlan: Equatable {
         var referenceIDs: [String] = []
         var copyIDs: [String] = []
         var duplicateCount = 0
+        var phantomCloudSharedCount = 0
     }
 
     /// Plans deduplication and copy mode without PhotoKit objects, so the
     /// decisions can be covered by ordinary unit tests.
-    static func albumCopyPlan(source: [PhotoAsset], target: [PhotoAsset]) -> AlbumCopyPlan {
-        var ids = Set(target.map(\.id))
-        var identities = Set(target.map(copyIdentity))
-        var plan = AlbumCopyPlan()
+    static func albumCopyPlan(source: [PhotoAsset], target: [PhotoAsset], provenance: [String: String] = [:]) -> AlbumCopyPlan {
+        let libraryAssets = target.filter { $0.sourceType == .userLibrary }
+        let targetIDs = Set(libraryAssets.map(\.id))
+        var ids = targetIDs
+        var identities = Set(libraryAssets.compactMap(copyIdentity))
+        var plan = AlbumCopyPlan(phantomCloudSharedCount: target.count - libraryAssets.count)
         for asset in source {
             let identity = copyIdentity(asset)
-            guard !ids.contains(asset.id), !identities.contains(identity) else {
+            let provenanceMatch = provenance[asset.id].map(targetIDs.contains) ?? false
+            guard !ids.contains(asset.id), !provenanceMatch, identity.map({ !identities.contains($0) }) ?? true else {
                 plan.duplicateCount += 1
                 continue
             }
             if asset.sourceType == .cloudShared { plan.copyIDs.append(asset.id) }
             else { plan.referenceIDs.append(asset.id) }
             ids.insert(asset.id)
-            identities.insert(identity)
+            if let identity { identities.insert(identity) }
         }
         return plan
     }
 
     /// Stable identity for matching a re-imported copy to its shared source.
-    static func copyIdentity(_ asset: PhotoAsset) -> String {
-        let date = asset.creationDate.map { String($0.timeIntervalSince1970) } ?? ""
-        return "\(asset.originalFilename ?? "")|\(date)|\(asset.pixelWidth)x\(asset.pixelHeight)"
+    static func copyIdentity(_ asset: PhotoAsset) -> String? {
+        guard let filename = asset.originalFilename, let creationDate = asset.creationDate else { return nil }
+        let name = URL(fileURLWithPath: filename).deletingPathExtension().lastPathComponent
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        return "\(name)|\(creationDate.timeIntervalSince1970)"
     }
 
     /// Returns a sequence of index ranges sized for PhotoKit change batches.
