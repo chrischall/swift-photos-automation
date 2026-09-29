@@ -8,11 +8,15 @@ public struct PhotoAlbum: Equatable, Hashable, Identifiable, Sendable {
     public let title: String
     /// Number of assets in the album.
     public let assetCount: Int
+    public let path: String?
+    public let isShared: Bool
 
     /// Creates an album value.
-    public init(id: String, title: String, assetCount: Int) {
+    public init(id: String, title: String, assetCount: Int, path: String? = nil, isShared: Bool = false) {
         self.id = id
         self.title = title
         self.assetCount = assetCount
+        self.path = path
+        self.isShared = isShared
     }
 }

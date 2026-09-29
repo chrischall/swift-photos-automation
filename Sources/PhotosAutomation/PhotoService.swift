@@ -32,6 +32,12 @@ public struct PhotoService: Sendable {
         try await store.listAlbums()
     }
 
+    public func copyAlbum(sourceAlbumId: String, targetAlbumId: String, dryRun: Bool = false) async throws -> PhotoCopyResult {
+        let sourceAlbumId = try Self.validateNonEmpty(sourceAlbumId, name: "sourceAlbumId")
+        let targetAlbumId = try Self.validateNonEmpty(targetAlbumId, name: "targetAlbumId")
+        return try await store.copyAlbum(sourceAlbumId: sourceAlbumId, targetAlbumId: targetAlbumId, dryRun: dryRun)
+    }
+
     /// Assets in the library (or one album), newest first.
     ///
     /// - Parameters:

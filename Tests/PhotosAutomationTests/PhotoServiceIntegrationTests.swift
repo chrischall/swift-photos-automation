@@ -67,6 +67,31 @@ struct PhotoServiceIntegrationTests {
         _ = try await Self.makeService().listAlbums()
     }
 
+    @Test("copies shared album items into a throwaway local album", Self.enabledTrait)
+    func copySharedAlbum() async throws {
+        guard let sourceId = ProcessInfo.processInfo.environment["PHOTOS_SHARED_SOURCE_ALBUM_ID"], !sourceId.isEmpty else {
+            return
+        }
+        let service = Self.makeService()
+        let albums = try await service.listAlbums()
+        let shared = try #require(albums.first { $0.id == sourceId && $0.isShared })
+        let sourceAssets = try await service.listAssets(albumId: shared.id, limit: 500)
+        #expect(sourceAssets.allSatisfy { $0.sourceType == "cloudShared" })
+        let target = try await service.createAlbum(title: "\(Self.albumPrefix)-copy-\(UUID().uuidString.prefix(8))")
+        let dryRun = try await service.copyAlbum(sourceAlbumId: sourceId, targetAlbumId: target.id, dryRun: true)
+        #expect(dryRun.importedAsCopies == sourceAssets.count)
+        let copied = try await service.copyAlbum(sourceAlbumId: sourceId, targetAlbumId: target.id)
+        #expect(copied.importedAsCopies == sourceAssets.count)
+        let repeated = try await service.copyAlbum(sourceAlbumId: sourceId, targetAlbumId: target.id)
+        #expect(repeated.importedAsCopies == 0)
+        #expect(repeated.skippedDuplicates == sourceAssets.count)
+        let localAssets = try await service.listAssets(albumId: target.id, limit: 500)
+        #expect(localAssets.allSatisfy { $0.sourceType == "userLibrary" })
+        for mediaType in [PhotoMediaType.image, .video] where sourceAssets.contains(where: { $0.mediaType == mediaType }) {
+            #expect(localAssets.contains(where: { $0.mediaType == mediaType }))
+        }
+    }
+
     @Test("structured search returns limited results", Self.enabledTrait)
     func structuredSearch() async throws {
         let results = try await Self.makeService()

@@ -11,6 +11,7 @@ final class FakePhotoLibraryStore: PhotoLibraryStore, @unchecked Sendable {
     var imageDataResult = Data()
     var createdAlbum = PhotoAlbum(id: "new-album", title: "New", assetCount: 0)
     var importResult: [PhotoAsset] = []
+    var copyResult = PhotoCopyResult()
     var errorToThrow: Error?
 
     private(set) var calls: [String] = []
@@ -76,5 +77,10 @@ final class FakePhotoLibraryStore: PhotoLibraryStore, @unchecked Sendable {
     func importFiles(urls: [URL], toAlbum albumId: String?) async throws -> [PhotoAsset] {
         try record("importFiles(\(urls.map(\.lastPathComponent)), toAlbum: \(albumId ?? "nil"))")
         return importResult
+    }
+
+    func copyAlbum(sourceAlbumId: String, targetAlbumId: String, dryRun: Bool) async throws -> PhotoCopyResult {
+        try record("copyAlbum(\(sourceAlbumId), \(targetAlbumId), dryRun: \(dryRun))")
+        return copyResult
     }
 }

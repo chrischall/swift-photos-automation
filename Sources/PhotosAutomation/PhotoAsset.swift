@@ -39,6 +39,7 @@ public struct PhotoAsset: Equatable, Hashable, Identifiable, Sendable {
     public let latitude: Double?
     /// GPS longitude, when the asset has location data.
     public let longitude: Double?
+    public let sourceType: String
     /// User-assigned title ("name" in Photos). AppleScript-sourced.
     public var title: String?
     /// User-assigned description/caption. AppleScript-sourced.
@@ -58,6 +59,7 @@ public struct PhotoAsset: Equatable, Hashable, Identifiable, Sendable {
         pixelHeight: Int = 0,
         latitude: Double? = nil,
         longitude: Double? = nil,
+        sourceType: String = "userLibrary",
         title: String? = nil,
         itemDescription: String? = nil,
         keywords: [String]? = nil
@@ -71,6 +73,7 @@ public struct PhotoAsset: Equatable, Hashable, Identifiable, Sendable {
         self.pixelHeight = pixelHeight
         self.latitude = latitude
         self.longitude = longitude
+        self.sourceType = sourceType
         self.title = title
         self.itemDescription = itemDescription
         self.keywords = keywords
