@@ -76,7 +76,7 @@ struct PhotoServiceIntegrationTests {
         let albums = try await service.listAlbums()
         let shared = try #require(albums.first { $0.id == sourceId && $0.isShared })
         let sourceAssets = try await service.listAssets(albumId: shared.id, limit: 500)
-        #expect(sourceAssets.allSatisfy { $0.sourceType == "cloudShared" })
+        #expect(sourceAssets.allSatisfy { $0.sourceType == .cloudShared })
         let target = try await service.createAlbum(title: "\(Self.albumPrefix)-copy-\(UUID().uuidString.prefix(8))")
         let dryRun = try await service.copyAlbum(sourceAlbumId: sourceId, targetAlbumId: target.id, dryRun: true)
         #expect(dryRun.importedAsCopies == sourceAssets.count)
@@ -86,7 +86,7 @@ struct PhotoServiceIntegrationTests {
         #expect(repeated.importedAsCopies == 0)
         #expect(repeated.skippedDuplicates == sourceAssets.count)
         let localAssets = try await service.listAssets(albumId: target.id, limit: 500)
-        #expect(localAssets.allSatisfy { $0.sourceType == "userLibrary" })
+        #expect(localAssets.allSatisfy { $0.sourceType == .userLibrary })
         for mediaType in [PhotoMediaType.image, .video] where sourceAssets.contains(where: { $0.mediaType == mediaType }) {
             #expect(localAssets.contains(where: { $0.mediaType == mediaType }))
         }

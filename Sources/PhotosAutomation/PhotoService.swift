@@ -38,6 +38,57 @@ public struct PhotoService: Sendable {
         return try await store.copyAlbum(sourceAlbumId: sourceAlbumId, targetAlbumId: targetAlbumId, dryRun: dryRun)
     }
 
+    struct AlbumCopyPlan: Equatable {
+        var referenceIDs: [String] = []
+        var copyIDs: [String] = []
+        var duplicateCount = 0
+    }
+
+    /// Plans deduplication and copy mode without PhotoKit objects, so the
+    /// decisions can be covered by ordinary unit tests.
+    static func albumCopyPlan(source: [PhotoAsset], target: [PhotoAsset]) -> AlbumCopyPlan {
+        var ids = Set(target.map(\.id))
+        var identities = Set(target.map(copyIdentity))
+        var plan = AlbumCopyPlan()
+        for asset in source {
+            let identity = copyIdentity(asset)
+            guard !ids.contains(asset.id), !identities.contains(identity) else {
+                plan.duplicateCount += 1
+                continue
+            }
+            if asset.sourceType == .cloudShared { plan.copyIDs.append(asset.id) }
+            else { plan.referenceIDs.append(asset.id) }
+            ids.insert(asset.id)
+            identities.insert(identity)
+        }
+        return plan
+    }
+
+    /// Stable identity for matching a re-imported copy to its shared source.
+    static func copyIdentity(_ asset: PhotoAsset) -> String {
+        let date = asset.creationDate.map { String($0.timeIntervalSince1970) } ?? ""
+        return "\(asset.originalFilename ?? "")|\(date)|\(asset.pixelWidth)x\(asset.pixelHeight)"
+    }
+
+    /// Returns a sequence of index ranges sized for PhotoKit change batches.
+    static func copyBatchRanges(count: Int, batchSize: Int = 25) -> [Range<Int>] {
+        guard count > 0, batchSize > 0 else { return [] }
+        return stride(from: 0, to: count, by: batchSize).map { start in
+            start ..< min(start + batchSize, count)
+        }
+    }
+
+    enum CopyResourceKind: Sendable { case photo, video, pairedVideo, other }
+
+    static func copyableResourceIndices(_ kinds: [CopyResourceKind]) -> [Int] {
+        kinds.indices.filter { index in
+            switch kinds[index] {
+            case .photo, .video, .pairedVideo: true
+            case .other: false
+            }
+        }
+    }
+
     /// Assets in the library (or one album), newest first.
     ///
     /// - Parameters:

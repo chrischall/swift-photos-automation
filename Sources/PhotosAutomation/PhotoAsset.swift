@@ -11,6 +11,12 @@ public enum PhotoMediaType: String, Equatable, Hashable, Sendable, CaseIterable 
     case unknown
 }
 
+/// Where a Photos asset is stored.
+public enum PhotoAssetSourceType: String, Equatable, Hashable, Sendable, CaseIterable {
+    case userLibrary
+    case cloudShared
+}
+
 /// A single item in the Photos library — photo, video, or audio clip.
 ///
 /// `id` is PhotoKit's `localIdentifier` (e.g. `"4AF382AC-…/L0/001"`),
@@ -39,7 +45,7 @@ public struct PhotoAsset: Equatable, Hashable, Identifiable, Sendable {
     public let latitude: Double?
     /// GPS longitude, when the asset has location data.
     public let longitude: Double?
-    public let sourceType: String
+    public let sourceType: PhotoAssetSourceType
     /// User-assigned title ("name" in Photos). AppleScript-sourced.
     public var title: String?
     /// User-assigned description/caption. AppleScript-sourced.
@@ -59,7 +65,7 @@ public struct PhotoAsset: Equatable, Hashable, Identifiable, Sendable {
         pixelHeight: Int = 0,
         latitude: Double? = nil,
         longitude: Double? = nil,
-        sourceType: String = "userLibrary",
+        sourceType: PhotoAssetSourceType = .userLibrary,
         title: String? = nil,
         itemDescription: String? = nil,
         keywords: [String]? = nil
