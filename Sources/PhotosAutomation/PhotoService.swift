@@ -32,42 +32,58 @@ public struct PhotoService: Sendable {
         try await store.listAlbums()
     }
 
-    public func copyAlbum(sourceAlbumId: String, targetAlbumId: String, dryRun: Bool = false) async throws -> PhotoCopyResult {
+    /// Copies an album into a regular local album. Cloud-shared members
+    /// already reported in the target are treated as phantom references,
+    /// never as duplicates. Set `cleanPhantoms` to remove those memberships
+    /// from the target before copying; `dryRun` reports them without edits.
+    public func copyAlbum(
+        sourceAlbumId: String,
+        targetAlbumId: String,
+        dryRun: Bool = false,
+        cleanPhantoms: Bool = false
+    ) async throws -> PhotoCopyResult {
         let sourceAlbumId = try Self.validateNonEmpty(sourceAlbumId, name: "sourceAlbumId")
         let targetAlbumId = try Self.validateNonEmpty(targetAlbumId, name: "targetAlbumId")
-        return try await store.copyAlbum(sourceAlbumId: sourceAlbumId, targetAlbumId: targetAlbumId, dryRun: dryRun)
+        return try await store.copyAlbum(
+            sourceAlbumId: sourceAlbumId,
+            targetAlbumId: targetAlbumId,
+            dryRun: dryRun,
+            cleanPhantoms: cleanPhantoms
+        )
     }
 
     struct AlbumCopyPlan: Equatable {
         var referenceIDs: [String] = []
         var copyIDs: [String] = []
         var duplicateCount = 0
+        var phantomCloudSharedCount = 0
     }
 
     /// Plans deduplication and copy mode without PhotoKit objects, so the
     /// decisions can be covered by ordinary unit tests.
     static func albumCopyPlan(source: [PhotoAsset], target: [PhotoAsset]) -> AlbumCopyPlan {
-        var ids = Set(target.map(\.id))
-        var identities = Set(target.map(copyIdentity))
-        var plan = AlbumCopyPlan()
+        let libraryAssets = target.filter { $0.sourceType == .userLibrary }
+        var ids = Set(libraryAssets.map(\.id))
+        var identities = Set(libraryAssets.compactMap(copyIdentity))
+        var plan = AlbumCopyPlan(phantomCloudSharedCount: target.count - libraryAssets.count)
         for asset in source {
             let identity = copyIdentity(asset)
-            guard !ids.contains(asset.id), !identities.contains(identity) else {
+            guard !ids.contains(asset.id), identity.map({ !identities.contains($0) }) ?? true else {
                 plan.duplicateCount += 1
                 continue
             }
             if asset.sourceType == .cloudShared { plan.copyIDs.append(asset.id) }
             else { plan.referenceIDs.append(asset.id) }
             ids.insert(asset.id)
-            identities.insert(identity)
+            if let identity { identities.insert(identity) }
         }
         return plan
     }
 
     /// Stable identity for matching a re-imported copy to its shared source.
-    static func copyIdentity(_ asset: PhotoAsset) -> String {
-        let date = asset.creationDate.map { String($0.timeIntervalSince1970) } ?? ""
-        return "\(asset.originalFilename ?? "")|\(date)|\(asset.pixelWidth)x\(asset.pixelHeight)"
+    static func copyIdentity(_ asset: PhotoAsset) -> String? {
+        guard let filename = asset.originalFilename, let creationDate = asset.creationDate else { return nil }
+        return "\(filename)|\(creationDate.timeIntervalSince1970)|\(asset.pixelWidth)x\(asset.pixelHeight)"
     }
 
     /// Returns a sequence of index ranges sized for PhotoKit change batches.

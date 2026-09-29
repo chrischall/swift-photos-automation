@@ -38,5 +38,20 @@ public protocol PhotoLibraryStore: Sendable {
     /// the album with `albumId`. Returns the created assets.
     func importFiles(urls: [URL], toAlbum albumId: String?) async throws -> [PhotoAsset]
     /// Copy assets from one album into another, duplicating cloud-shared items.
+    /// Target cloud-shared members never count as duplicates. When requested,
+    /// remove those memberships from the target before applying the copy.
     func copyAlbum(sourceAlbumId: String, targetAlbumId: String, dryRun: Bool) async throws -> PhotoCopyResult
+    /// Extended copy operation. Existing store implementations keep working
+    /// through the default implementation when phantom cleanup is not asked
+    /// for.
+    func copyAlbum(sourceAlbumId: String, targetAlbumId: String, dryRun: Bool, cleanPhantoms: Bool) async throws -> PhotoCopyResult
+}
+
+public extension PhotoLibraryStore {
+    func copyAlbum(sourceAlbumId: String, targetAlbumId: String, dryRun: Bool, cleanPhantoms: Bool) async throws -> PhotoCopyResult {
+        guard !cleanPhantoms else {
+            throw PhotoServiceError.operationFailed("this Photos store does not support cleaning cloud-shared phantom members")
+        }
+        return try await copyAlbum(sourceAlbumId: sourceAlbumId, targetAlbumId: targetAlbumId, dryRun: dryRun)
+    }
 }

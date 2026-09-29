@@ -393,6 +393,15 @@ public struct PhotoKitStore: PhotoLibraryStore {
     }
 
     public func copyAlbum(sourceAlbumId: String, targetAlbumId: String, dryRun: Bool = false) async throws -> PhotoCopyResult {
+        try await copyAlbum(sourceAlbumId: sourceAlbumId, targetAlbumId: targetAlbumId, dryRun: dryRun, cleanPhantoms: false)
+    }
+
+    public func copyAlbum(
+        sourceAlbumId: String,
+        targetAlbumId: String,
+        dryRun: Bool,
+        cleanPhantoms: Bool
+    ) async throws -> PhotoCopyResult {
         try await ensureAuthorized()
         guard PHPhotoLibrary.authorizationStatus(for: .readWrite) == .authorized else {
             throw PhotoServiceError.fullAccessRequired
@@ -429,10 +438,28 @@ public struct PhotoKitStore: PhotoLibraryStore {
         let plan = PhotoService.albumCopyPlan(source: sourceAssets, target: targetAssets)
         var result = PhotoCopyResult()
         result.skippedDuplicates = plan.duplicateCount
+        result.phantomCloudSharedCount = plan.phantomCloudSharedCount
         if dryRun {
             result.addedByReference = plan.referenceIDs.count
             result.importedAsCopies = plan.copyIDs.count
             return result
+        }
+
+        if cleanPhantoms, plan.phantomCloudSharedCount > 0 {
+            try await performChanges {
+                let collections = PHAssetCollection.fetchAssetCollections(
+                    withLocalIdentifiers: [targetAlbumId], options: nil
+                )
+                guard let collection = collections.firstObject,
+                      let changeRequest = PHAssetCollectionChangeRequest(for: collection)
+                else { return }
+                let phantomFetch = PHAsset.fetchAssets(in: collection, options: Self.assetFetchOptions())
+                let phantoms = (0 ..< phantomFetch.count).compactMap { index -> PHAsset? in
+                    let asset = phantomFetch.object(at: index)
+                    return asset.sourceType.contains(.typeCloudShared) ? asset : nil
+                }
+                changeRequest.removeAssets(phantoms as NSArray)
+            }
         }
 
         struct StagedResource: @unchecked Sendable {

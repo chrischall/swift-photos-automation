@@ -83,4 +83,9 @@ final class FakePhotoLibraryStore: PhotoLibraryStore, @unchecked Sendable {
         try record("copyAlbum(\(sourceAlbumId), \(targetAlbumId), dryRun: \(dryRun))")
         return copyResult
     }
+
+    func copyAlbum(sourceAlbumId: String, targetAlbumId: String, dryRun: Bool, cleanPhantoms: Bool) async throws -> PhotoCopyResult {
+        try record("copyAlbum(\(sourceAlbumId), \(targetAlbumId), dryRun: \(dryRun), cleanPhantoms: \(cleanPhantoms))")
+        return copyResult
+    }
 }

@@ -10,6 +10,8 @@ struct PhotoCopyPlanTests {
                        pixelWidth: 50, pixelHeight: 40),
             PhotoAsset(id: "local-copy", originalFilename: "IMG_1.HEIC", creationDate: date,
                        pixelWidth: 100, pixelHeight: 80),
+            PhotoAsset(id: "phantom-shared", originalFilename: "IMG_2.MOV", creationDate: date,
+                       mediaType: .video, sourceType: .cloudShared),
         ]
         let source = [
             PhotoAsset(id: "same-id", originalFilename: "IMG_0.HEIC", creationDate: date,
@@ -25,8 +27,33 @@ struct PhotoCopyPlanTests {
         let plan = PhotoService.albumCopyPlan(source: source, target: target)
 
         #expect(plan.duplicateCount == 2)
+        #expect(plan.phantomCloudSharedCount == 1)
         #expect(plan.referenceIDs == ["new-library"])
         #expect(plan.copyIDs == ["new-shared"])
+    }
+
+    @Test func cloudSharedTargetMembersNeverSuppressImports() {
+        let date = Date(timeIntervalSince1970: 1_700_000_000)
+        let phantom = PhotoAsset(id: "phantom", originalFilename: "IMG_1.HEIC", creationDate: date,
+                                 pixelWidth: 100, pixelHeight: 80, sourceType: .cloudShared)
+        let source = PhotoAsset(id: "shared", originalFilename: "IMG_1.HEIC", creationDate: date,
+                                pixelWidth: 100, pixelHeight: 80, sourceType: .cloudShared)
+
+        let plan = PhotoService.albumCopyPlan(source: [source], target: [phantom])
+
+        #expect(plan.phantomCloudSharedCount == 1)
+        #expect(plan.duplicateCount == 0)
+        #expect(plan.copyIDs == ["shared"])
+    }
+
+    @Test func incompleteCopyIdentityDoesNotMatchUnrelatedAssets() {
+        let source = PhotoAsset(id: "source", sourceType: .cloudShared)
+        let target = PhotoAsset(id: "target")
+
+        let plan = PhotoService.albumCopyPlan(source: [source], target: [target])
+
+        #expect(plan.duplicateCount == 0)
+        #expect(plan.copyIDs == ["source"])
     }
 
     @Test func copyBatchRangesUseTwentyFiveItemBatches() {
