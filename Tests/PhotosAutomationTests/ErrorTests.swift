@@ -27,6 +27,8 @@ struct PhotoServiceErrorTests {
             == "Not found: asset X")
         #expect(PhotoServiceError.permissionDenied.errorDescription
             == "Photos library access denied — grant access in System Settings → Privacy & Security → Photos")
+        #expect(PhotoServiceError.fullAccessRequired.errorDescription
+            == "Full Photos library access is required for shared album copying — Limited access is not sufficient. Grant Full Access in System Settings → Privacy & Security → Photos")
         #expect(PhotoServiceError.operationFailed("boom").errorDescription
             == "Photos operation failed: boom")
     }

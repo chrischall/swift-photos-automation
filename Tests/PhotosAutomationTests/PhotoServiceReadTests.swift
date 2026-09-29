@@ -12,6 +12,14 @@ struct PhotoServiceReadTests {
 
     // MARK: listAlbums
 
+    @Test func copyAlbumPassesIdsAndDryRunThrough() async throws {
+        let store = FakePhotoLibraryStore()
+        store.copyResult.addedByReference = 2
+        let result = try await makeService(store: store).copyAlbum(sourceAlbumId: "shared", targetAlbumId: "local", dryRun: true)
+        #expect(result.addedByReference == 2)
+        #expect(store.calls.contains("copyAlbum(shared, local, dryRun: true)"))
+    }
+
     @Test func listAlbumsReturnsStoreAlbums() async throws {
         let store = FakePhotoLibraryStore()
         store.albums = [PhotoAlbum(id: "a1", title: "Trips", assetCount: 3)]

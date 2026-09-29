@@ -15,6 +15,8 @@ public enum PhotoServiceError: Error, Equatable, Sendable {
     case notFound(String)
     /// Photos library access is not authorized for this process.
     case permissionDenied
+    /// Full library access is required for shared album copying.
+    case fullAccessRequired
     /// PhotoKit reported a failure performing the operation.
     case operationFailed(String)
 }
@@ -29,6 +31,8 @@ extension PhotoServiceError: LocalizedError {
             "Not found: \(what)"
         case .permissionDenied:
             "Photos library access denied — grant access in System Settings → Privacy & Security → Photos"
+        case .fullAccessRequired:
+            "Full Photos library access is required for shared album copying — Limited access is not sufficient. Grant Full Access in System Settings → Privacy & Security → Photos"
         case let .operationFailed(message):
             "Photos operation failed: \(message)"
         }

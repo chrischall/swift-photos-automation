@@ -37,4 +37,6 @@ public protocol PhotoLibraryStore: Sendable {
     /// Imports the files at `urls` into the library and optionally into
     /// the album with `albumId`. Returns the created assets.
     func importFiles(urls: [URL], toAlbum albumId: String?) async throws -> [PhotoAsset]
+    /// Copy assets from one album into another, duplicating cloud-shared items.
+    func copyAlbum(sourceAlbumId: String, targetAlbumId: String, dryRun: Bool) async throws -> PhotoCopyResult
 }
