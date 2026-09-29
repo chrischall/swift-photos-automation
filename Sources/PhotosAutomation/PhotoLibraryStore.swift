@@ -45,9 +45,17 @@ public protocol PhotoLibraryStore: Sendable {
     /// through the default implementation when phantom cleanup is not asked
     /// for.
     func copyAlbum(sourceAlbumId: String, targetAlbumId: String, dryRun: Bool, cleanPhantoms: Bool) async throws -> PhotoCopyResult
+    func copyAlbum(sourceAlbumId: String, targetAlbumId: String, dryRun: Bool, cleanPhantoms: Bool,
+                   progress: (@Sendable (PhotoCopyProgress) -> Void)?) async throws -> PhotoCopyResult
 }
 
 public extension PhotoLibraryStore {
+    func copyAlbum(sourceAlbumId: String, targetAlbumId: String, dryRun: Bool, cleanPhantoms: Bool,
+                   progress: (@Sendable (PhotoCopyProgress) -> Void)?) async throws -> PhotoCopyResult {
+        try await copyAlbum(sourceAlbumId: sourceAlbumId, targetAlbumId: targetAlbumId,
+                            dryRun: dryRun, cleanPhantoms: cleanPhantoms)
+    }
+
     func copyAlbum(sourceAlbumId: String, targetAlbumId: String, dryRun: Bool, cleanPhantoms: Bool) async throws -> PhotoCopyResult {
         guard !cleanPhantoms else {
             throw PhotoServiceError.operationFailed("this Photos store does not support cleaning cloud-shared phantom members")

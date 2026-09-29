@@ -14,3 +14,13 @@ public struct PhotoCopyResult: Equatable, Sendable {
     public var failures: [PhotoCopyFailure] = []
     public init() {}
 }
+
+public struct PhotoCopyProgress: Equatable, Sendable {
+    public let total: Int
+    public let done: Int
+    public let remaining: Int
+    public let failed: Int
+    public init(total: Int, done: Int, remaining: Int, failed: Int) {
+        self.total = total; self.done = done; self.remaining = remaining; self.failed = failed
+    }
+}

@@ -42,13 +42,25 @@ public struct PhotoService: Sendable {
         dryRun: Bool = false,
         cleanPhantoms: Bool = false
     ) async throws -> PhotoCopyResult {
+        try await copyAlbum(sourceAlbumId: sourceAlbumId, targetAlbumId: targetAlbumId,
+                            dryRun: dryRun, cleanPhantoms: cleanPhantoms, progress: nil)
+    }
+
+    public func copyAlbum(
+        sourceAlbumId: String,
+        targetAlbumId: String,
+        dryRun: Bool = false,
+        cleanPhantoms: Bool = false,
+        progress: (@Sendable (PhotoCopyProgress) -> Void)?
+    ) async throws -> PhotoCopyResult {
         let sourceAlbumId = try Self.validateNonEmpty(sourceAlbumId, name: "sourceAlbumId")
         let targetAlbumId = try Self.validateNonEmpty(targetAlbumId, name: "targetAlbumId")
         return try await store.copyAlbum(
             sourceAlbumId: sourceAlbumId,
             targetAlbumId: targetAlbumId,
             dryRun: dryRun,
-            cleanPhantoms: cleanPhantoms
+            cleanPhantoms: cleanPhantoms,
+            progress: progress
         )
     }
 
@@ -61,14 +73,16 @@ public struct PhotoService: Sendable {
 
     /// Plans deduplication and copy mode without PhotoKit objects, so the
     /// decisions can be covered by ordinary unit tests.
-    static func albumCopyPlan(source: [PhotoAsset], target: [PhotoAsset]) -> AlbumCopyPlan {
+    static func albumCopyPlan(source: [PhotoAsset], target: [PhotoAsset], provenance: [String: String] = [:]) -> AlbumCopyPlan {
         let libraryAssets = target.filter { $0.sourceType == .userLibrary }
-        var ids = Set(libraryAssets.map(\.id))
+        let targetIDs = Set(libraryAssets.map(\.id))
+        var ids = targetIDs
         var identities = Set(libraryAssets.compactMap(copyIdentity))
         var plan = AlbumCopyPlan(phantomCloudSharedCount: target.count - libraryAssets.count)
         for asset in source {
             let identity = copyIdentity(asset)
-            guard !ids.contains(asset.id), identity.map({ !identities.contains($0) }) ?? true else {
+            let provenanceMatch = provenance[asset.id].map(targetIDs.contains) ?? false
+            guard !ids.contains(asset.id), !provenanceMatch, identity.map({ !identities.contains($0) }) ?? true else {
                 plan.duplicateCount += 1
                 continue
             }
@@ -83,7 +97,9 @@ public struct PhotoService: Sendable {
     /// Stable identity for matching a re-imported copy to its shared source.
     static func copyIdentity(_ asset: PhotoAsset) -> String? {
         guard let filename = asset.originalFilename, let creationDate = asset.creationDate else { return nil }
-        return "\(filename)|\(creationDate.timeIntervalSince1970)|\(asset.pixelWidth)x\(asset.pixelHeight)"
+        let name = URL(fileURLWithPath: filename).deletingPathExtension().lastPathComponent
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        return "\(name)|\(creationDate.timeIntervalSince1970)"
     }
 
     /// Returns a sequence of index ranges sized for PhotoKit change batches.
