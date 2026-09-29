@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/chrischall/swift-photos-automation/compare/v0.2.0...v0.3.0) (2026-09-29)
+
+
+### Features
+
+* **photos:** make shared album copies resumable ([#27](https://github.com/chrischall/swift-photos-automation/issues/27)) ([e0b1bb3](https://github.com/chrischall/swift-photos-automation/commit/e0b1bb36531fcf398723168ce8953bee51270eb5))
+
 ## [0.2.0](https://github.com/chrischall/swift-photos-automation/compare/v0.1.4...v0.2.0) (2026-09-29)
 
 
