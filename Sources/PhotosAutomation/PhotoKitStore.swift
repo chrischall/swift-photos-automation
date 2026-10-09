@@ -186,23 +186,34 @@ public struct PhotoKitStore: PhotoLibraryStore {
         } catch {
             throw PhotoServiceError.operationFailed(error.localizedDescription)
         }
-        var written: [URL] = []
-        for id in ids {
-            guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: Self.assetFetchOptions()).firstObject else {
-                throw PhotoServiceError.notFound("asset \(id)")
-            }
-            let resources = PHAssetResource.assetResources(for: asset)
-            guard let resource = resources.first(where: { $0.type == .photo || $0.type == .video })
-                ?? resources.first
-            else {
+        // Resolve every asset and its resource before writing anything, so an
+        // unknown id or a resource-less asset fails with nothing on disk.
+        let fetch = PHAsset.fetchAssets(withLocalIdentifiers: ids, options: Self.assetFetchOptions())
+        var byId: [String: PHAsset] = [:]
+        for i in 0 ..< fetch.count {
+            let asset = fetch.object(at: i)
+            byId[asset.localIdentifier] = asset
+        }
+        let missing = ids.filter { byId[$0] == nil }
+        guard missing.isEmpty else {
+            throw PhotoServiceError.notFound("asset(s) \(missing.joined(separator: ", "))")
+        }
+        let resources: [(id: String, resource: PHAssetResource)] = try ids.map { id in
+            let all = PHAssetResource.assetResources(for: byId[id]!)
+            guard let resource = all.first(where: { $0.type == .photo || $0.type == .video }) ?? all.first else {
                 throw PhotoServiceError.operationFailed("asset \(id) has no exportable resource")
             }
-            let destination = Self.availableURL(in: directory, filename: resource.originalFilename)
+            return (id, resource)
+        }
+        // A write can still fail mid-way (e.g. an iCloud download); then the
+        // files already written by this call are removed rather than orphaned.
+        return try await Self.writeAllOrNothing(resources) { item in
+            let destination = Self.availableURL(in: directory, filename: item.resource.originalFilename)
             let options = PHAssetResourceRequestOptions()
             options.isNetworkAccessAllowed = true
             try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, Error>) in
                 PHAssetResourceManager.default().writeData(
-                    for: resource, toFile: destination, options: options
+                    for: item.resource, toFile: destination, options: options
                 ) { error in
                     if let error {
                         c.resume(throwing: PhotoServiceError.operationFailed(error.localizedDescription))
@@ -211,7 +222,26 @@ public struct PhotoKitStore: PhotoLibraryStore {
                     }
                 }
             }
-            written.append(destination)
+            return destination
+        }
+    }
+
+    /// Runs `write` for each item in order and returns the URLs it wrote.
+    /// If any write throws, the files already written by this call are
+    /// removed before the error is rethrown — the export is all-or-nothing.
+    static func writeAllOrNothing<Item>(
+        _ items: [Item], _ write: (Item) async throws -> URL
+    ) async throws -> [URL] {
+        var written: [URL] = []
+        do {
+            for item in items {
+                try await written.append(write(item))
+            }
+        } catch {
+            for url in written {
+                try? FileManager.default.removeItem(at: url)
+            }
+            throw error
         }
         return written
     }

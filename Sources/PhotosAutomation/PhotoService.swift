@@ -376,7 +376,9 @@ public struct PhotoService: Sendable {
     }
 
     /// Exports each asset's original file (photo or video) into
-    /// `directory`, creating the directory if needed.
+    /// `directory`, creating the directory if needed. All-or-nothing: every
+    /// id is checked before anything is written, and if a later write fails
+    /// the files this call already wrote are removed.
     /// - Returns: URLs of the written files, in input order.
     public func exportOriginals(ids: [String], to directory: URL) async throws -> [URL] {
         let ids = try Self.validateIds(ids)

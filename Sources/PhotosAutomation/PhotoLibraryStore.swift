@@ -18,6 +18,8 @@ public protocol PhotoLibraryStore: Sendable {
     func assets(ids: [String]) async throws -> [PhotoAsset]
     /// Writes each asset's original resource (photo or video file) into
     /// `directory`, creating it if needed. Returns the written file URLs.
+    /// All-or-nothing: throws before writing when any id is unknown, and
+    /// removes this call's files when a later write fails.
     func exportOriginals(ids: [String], to directory: URL) async throws -> [URL]
     /// A JPEG rendition of the asset scaled to fit `maxDimension` pixels
     /// on its longest side.
