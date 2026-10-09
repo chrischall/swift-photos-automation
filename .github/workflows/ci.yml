@@ -14,8 +14,13 @@ permissions:
 
 jobs:
   ci:
-    runs-on: macos-15
-    timeout-minutes: 10
+    # Fleet policy: Apple CI runs on the self-hosted Mac. This repo is PUBLIC,
+    # so never run a fork's code there: fork PRs skip the job entirely (their
+    # ci-gated stays unreported, so the merge stays blocked, same as before),
+    # and the repo also requires approval for every external contributor's run.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 15
     steps:
       # Deferred-merge gate (shared with the fleet), status mode: CI is
       # deferred until auto-review arms the PR with `ready-to-merge`. An
@@ -31,7 +36,8 @@ jobs:
         if: steps.gate.outputs.run == 'true'
       - name: Select Xcode
         if: steps.gate.outputs.run == 'true'
-        run: sudo xcode-select --switch /Applications/Xcode.app
+        # No sudo on the shared self-hosted Mac: select Xcode for this job only.
+        run: echo "DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer" >> "$GITHUB_ENV"
       - name: Swift version
         if: steps.gate.outputs.run == 'true'
         run: swift --version
