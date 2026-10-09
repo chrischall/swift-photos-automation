@@ -225,7 +225,12 @@ public struct PhotoKitStore: PhotoLibraryStore {
         options.deliveryMode = .highQualityFormat // handler fires exactly once
         options.isNetworkAccessAllowed = true
         options.resizeMode = .exact
-        let target = CGSize(width: maxDimension, height: maxDimension)
+        // Never ask for more than the cap or the asset's own size: `.exact`
+        // would otherwise upscale to the target and allocate a huge bitmap.
+        let dimension = PhotoService.renditionDimension(
+            requested: maxDimension, pixelWidth: asset.pixelWidth, pixelHeight: asset.pixelHeight
+        )
+        let target = CGSize(width: dimension, height: dimension)
         // Encode to JPEG inside the callback so only Sendable Data crosses
         // the continuation (NSImage is not Sendable).
         return try await withCheckedThrowingContinuation { (c: CheckedContinuation<Data, Error>) in
@@ -238,9 +243,11 @@ public struct PhotoKitStore: PhotoLibraryStore {
                     c.resume(throwing: PhotoServiceError.operationFailed(message))
                     return
                 }
-                guard let tiff = image.tiffRepresentation,
-                      let rep = NSBitmapImageRep(data: tiff),
-                      let jpeg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.85])
+                // Encode straight from the CGImage — no TIFF round-trip, so
+                // the bitmap is not buffered a second time.
+                guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
+                      let jpeg = NSBitmapImageRep(cgImage: cgImage)
+                      .representation(using: .jpeg, properties: [.compressionFactor: 0.85])
                 else {
                     c.resume(throwing: PhotoServiceError.operationFailed("could not encode JPEG for \(id)"))
                     return
