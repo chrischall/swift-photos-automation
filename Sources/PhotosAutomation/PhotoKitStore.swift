@@ -204,7 +204,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
             let asset = fetch.object(at: i)
             byId[asset.localIdentifier] = asset
         }
-        let missing = ids.filter { byId[$0] == nil }
+        let missing = Self.missingIDs(requested: ids, found: Set(byId.keys))
         guard missing.isEmpty else {
             throw PhotoServiceError.notFound("asset(s) \(missing.joined(separator: ", "))")
         }
@@ -432,13 +432,8 @@ public struct PhotoKitStore: PhotoLibraryStore {
             }
             createdIds.value = placeholders.map(\.localIdentifier)
         }
-        guard createdIds.value.count == urls.count else {
-            // The change block already committed the ones that worked;
-            // name them so a caller can retry only the rest.
-            let created = createdIds.value.isEmpty ? "none" : createdIds.value.joined(separator: ", ")
-            throw PhotoServiceError.operationFailed(
-                "imported \(createdIds.value.count) of \(urls.count) files — unsupported format? created ids: \(created)"
-            )
+        if let shortfall = Self.importShortfall(createdIds: createdIds.value, requestedCount: urls.count) {
+            throw shortfall
         }
         let fetched = try await assets(ids: createdIds.value)
         let byId = Dictionary(fetched.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
@@ -704,15 +699,35 @@ public struct PhotoKitStore: PhotoLibraryStore {
     /// Throws ``PhotoServiceError/notFound(_:)`` when any id is unknown.
     private func ensureAssetsExist(_ ids: [String]) throws {
         let fetch = PHAsset.fetchAssets(withLocalIdentifiers: ids, options: Self.assetFetchOptions())
-        // The fetch holds each asset once, so compare against distinct ids.
-        guard fetch.count == Set(ids).count else {
-            var found = Set<String>()
-            for i in 0 ..< fetch.count {
-                found.insert(fetch.object(at: i).localIdentifier)
-            }
-            let missing = ids.filter { !found.contains($0) }
+        var found = Set<String>()
+        for i in 0 ..< fetch.count {
+            found.insert(fetch.object(at: i).localIdentifier)
+        }
+        let missing = Self.missingIDs(requested: ids, found: found)
+        guard missing.isEmpty else {
             throw PhotoServiceError.notFound("asset(s) \(missing.joined(separator: ", "))")
         }
+    }
+
+    /// The requested ids absent from `found`, each listed once, in input
+    /// order. A repeated id that was found is never reported: a PhotoKit
+    /// fetch holds each asset once, so callers must compare by identity,
+    /// not by count.
+    static func missingIDs(requested: [String], found: Set<String>) -> [String] {
+        var seen = Set<String>()
+        return requested.filter { !found.contains($0) && seen.insert($0).inserted }
+    }
+
+    /// The error for an import that created fewer assets than files it was
+    /// given, or `nil` when every file was imported. The change block has
+    /// already committed the ones that worked, so the message names their
+    /// ids for a caller to retry only the rest.
+    static func importShortfall(createdIds: [String], requestedCount: Int) -> PhotoServiceError? {
+        guard createdIds.count != requestedCount else { return nil }
+        let created = createdIds.isEmpty ? "none" : createdIds.joined(separator: ", ")
+        return .operationFailed(
+            "imported \(createdIds.count) of \(requestedCount) files — unsupported format? created ids: \(created)"
+        )
     }
 
     /// Throws ``PhotoServiceError/notFound(_:)`` when the album is unknown.
