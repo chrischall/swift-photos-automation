@@ -99,6 +99,13 @@ dictionary exposes identically — one ID works across both transports.
   read or write them. They are `nil` in list/search results and hydrated
   only by `asset(id:)`; hydration is best-effort (stays `nil` if
   Photos.app is unreachable).
+- **No path confinement by default.** `exportOriginals(ids:to:)` writes
+  into any directory it is given and `importFiles(urls:)` reads any file
+  the process can reach — the library does no allow-listing. A consumer
+  that forwards untrusted paths (e.g. an MCP tool taking model-chosen
+  paths) must confine them: enforce its own policy, or pass
+  `allowedRoot:`, which refuses any path that resolves (symlinks and `..`
+  included) outside that directory before the library is touched.
 - **Smart albums, Live Photo editing, and iCloud shared albums** are out
   of scope.
 

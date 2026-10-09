@@ -384,9 +384,25 @@ public struct PhotoService: Sendable {
     /// `directory`, creating the directory if needed. All-or-nothing: every
     /// id is checked before anything is written, and if a later write fails
     /// the files this call already wrote are removed.
+    ///
+    /// > Important: Path trust is the caller's job. Without `allowedRoot`
+    /// > the library writes into whatever directory it is given — it does
+    /// > no allow-listing. A consumer that forwards untrusted paths (such
+    /// > as an MCP tool taking a model-chosen directory) must confine them,
+    /// > either with its own policy or by passing `allowedRoot`.
+    ///
+    /// - Parameters:
+    ///   - allowedRoot: When set, `directory` must resolve (symlinks and
+    ///     `..` included) to `allowedRoot` or a path beneath it, or the call
+    ///     throws ``PhotoServiceError/invalidInput(_:)`` before touching the
+    ///     library. The check runs once, up front: it does not guard against
+    ///     the filesystem being changed underneath it while the export runs.
     /// - Returns: URLs of the written files, in input order.
-    public func exportOriginals(ids: [String], to directory: URL) async throws -> [URL] {
+    public func exportOriginals(ids: [String], to directory: URL, allowedRoot: URL? = nil) async throws -> [URL] {
         let ids = try Self.validateIds(ids)
+        if let allowedRoot, !Self.isWithin(directory, root: allowedRoot) {
+            throw PhotoServiceError.invalidInput("directory is outside the allowed root: \(directory.path)")
+        }
         return try await store.exportOriginals(ids: ids, to: directory)
     }
 
@@ -423,10 +439,31 @@ public struct PhotoService: Sendable {
     /// to an album. Every file must exist, be a regular file, and have an
     /// image or video type — all checked up front, before the library is
     /// touched, so one bad file cannot leave a partial import behind.
+    ///
+    /// > Important: Path trust is the caller's job. Without `allowedRoot`
+    /// > the library reads any file the process can reach — it does no
+    /// > allow-listing. A consumer that forwards untrusted paths (such as
+    /// > an MCP tool taking model-chosen file paths) must confine them,
+    /// > either with its own policy or by passing `allowedRoot`.
+    ///
+    /// - Parameters:
+    ///   - allowedRoot: When set, every url must resolve (symlinks and `..`
+    ///     included) to a path beneath `allowedRoot`, or the call throws
+    ///     ``PhotoServiceError/invalidInput(_:)`` before any file is
+    ///     inspected or the library is touched. The check runs once, up
+    ///     front: it does not guard against the filesystem being changed
+    ///     underneath it while the import runs.
     /// - Returns: The created assets.
-    public func importFiles(urls: [URL], albumId: String? = nil) async throws -> [PhotoAsset] {
+    public func importFiles(urls: [URL], albumId: String? = nil, allowedRoot: URL? = nil) async throws -> [PhotoAsset] {
         guard !urls.isEmpty else {
             throw PhotoServiceError.invalidInput("urls must not be empty")
+        }
+        if let allowedRoot {
+            // Before validateImportable, so a refused path is never stat'd
+            // and the error leaks nothing about what exists outside the root.
+            for url in urls where !Self.isWithin(url, root: allowedRoot) {
+                throw PhotoServiceError.invalidInput("file is outside the allowed root: \(url.path)")
+            }
         }
         for url in urls {
             try Self.validateImportable(url)
@@ -435,6 +472,58 @@ public struct PhotoService: Sendable {
             _ = try Self.validateNonEmpty(albumId, name: "albumId")
         }
         return try await store.importFiles(urls: urls, toAlbum: albumId)
+    }
+
+    /// Whether `url` resolves to `root` or a path beneath it.
+    ///
+    /// Both sides are canonicalised with ``canonicalComponents(_:)``, so
+    /// symlinks (including one inside `root` that points out of it), `..`
+    /// segments and alternate spellings like `/tmp` vs `/private/tmp` are
+    /// all judged by where the path really lands. Containment is by whole
+    /// path component, so `/a/root-evil` is not inside `/a/root`. A path
+    /// that cannot be canonicalised is treated as outside.
+    static func isWithin(_ url: URL, root: URL) -> Bool {
+        guard let rootComponents = canonicalComponents(root),
+              let components = canonicalComponents(url)
+        else { return false }
+        return components.count >= rootComponents.count
+            && Array(components.prefix(rootComponents.count)) == rootComponents
+    }
+
+    /// The real path of `url` as components, or `nil` when it cannot be
+    /// determined. The deepest ancestor that exists is resolved with
+    /// `realpath(3)` (the kernel follows every symlink and `..`). The
+    /// not-yet-existing tail has its `.` and `..` segments applied
+    /// lexically — safe only because it contains no symlinks, so a
+    /// dangling symlink (whose target does not exist yet, but which a
+    /// later write would follow) yields `nil`.
+    static func canonicalComponents(_ url: URL) -> [String]? {
+        var existing = url.absoluteURL.path
+        var tail: [String] = []
+        var resolved: String
+        while true {
+            if let real = realpath(existing, nil) {
+                resolved = String(cString: real)
+                free(real)
+                break
+            }
+            if (try? FileManager.default.destinationOfSymbolicLink(atPath: existing)) != nil {
+                return nil
+            }
+            let parent = (existing as NSString).deletingLastPathComponent
+            guard !parent.isEmpty, parent != existing else { return nil }
+            tail.insert((existing as NSString).lastPathComponent, at: 0)
+            existing = parent
+        }
+        var components = resolved.split(separator: "/").map(String.init)
+        for part in tail where part != "." && part != "/" && !part.isEmpty {
+            if part == ".." {
+                _ = components.popLast()
+            } else {
+                components.append(part)
+            }
+        }
+        return components
     }
 
     /// Validates an id array: non-empty, no blank members.
