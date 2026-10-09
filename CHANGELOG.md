@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0](https://github.com/chrischall/swift-photos-automation/compare/v0.3.0...v0.4.0) (2026-10-09)
+
+
+### Features
+
+* **photos:** optional allowedRoot path confinement for export and import ([#32](https://github.com/chrischall/swift-photos-automation/issues/32)) ([4ea1bea](https://github.com/chrischall/swift-photos-automation/commit/4ea1beabb823d09fa2ec3a3f386df7f1469fd67d))
+
+
+### Bug Fixes
+
+* resolve low-severity audit findings ([#29](https://github.com/chrischall/swift-photos-automation/issues/29)) ([5bd401d](https://github.com/chrischall/swift-photos-automation/commit/5bd401d426b795377945bd68b51212f0479905a8))
+
 ## [0.3.0](https://github.com/chrischall/swift-photos-automation/compare/v0.2.0...v0.3.0) (2026-09-29)
 
 
