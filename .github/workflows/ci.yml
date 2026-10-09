@@ -35,6 +35,14 @@ jobs:
       - name: Swift version
         if: steps.gate.outputs.run == 'true'
         run: swift --version
+      # CLAUDE.md documents `swiftformat . --lint` against the committed
+      # .swiftformat; enforce it so formatting drift can't merge unchecked.
+      - name: Lint (swiftformat)
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          command -v swiftformat >/dev/null || brew install swiftformat
+          swiftformat --version
+          swiftformat . --lint
       - name: Build
         if: steps.gate.outputs.run == 'true'
         run: swift build

@@ -86,10 +86,15 @@ public struct PhotoService: Sendable {
                 plan.duplicateCount += 1
                 continue
             }
-            if asset.sourceType == .cloudShared { plan.copyIDs.append(asset.id) }
-            else { plan.referenceIDs.append(asset.id) }
+            if asset.sourceType == .cloudShared {
+                plan.copyIDs.append(asset.id)
+            } else {
+                plan.referenceIDs.append(asset.id)
+            }
             ids.insert(asset.id)
-            if let identity { identities.insert(identity) }
+            if let identity {
+                identities.insert(identity)
+            }
         }
         return plan
     }

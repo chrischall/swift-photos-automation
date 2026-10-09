@@ -25,7 +25,10 @@ public final class PhotoCopyProvenanceStore: @unchecked Sendable {
                 all = (try? JSONDecoder().decode([String: String].self, from: data)) ?? [:]
             }
             all.merge(values) { _, new in new }
-            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
             try JSONEncoder().encode(all).write(to: url, options: .atomic)
         }
     }
