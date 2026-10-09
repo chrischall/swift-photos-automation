@@ -100,6 +100,29 @@ struct PhotoServiceOrganizeTests {
         }
     }
 
+    @Test func imageDataClampsOversizedDimensionToCap() async throws {
+        _ = try await service.imageData(id: "a", maxDimension: 50000)
+        #expect(store.calls == ["imageData(a, maxDimension: \(PhotoService.maxRenditionDimension))"])
+    }
+
+    @Test func renditionCapIsSane() {
+        #expect(PhotoService.maxRenditionDimension == 4096)
+    }
+
+    @Test(arguments: [
+        // requested, pixelWidth, pixelHeight, expected
+        (512, 4000, 3000, 512), // smaller than the asset: honoured
+        (50000, 8000, 6000, 4096), // above the cap: clamped to the cap
+        (4096, 1200, 900, 1200), // larger than the asset: never upscale
+        (2000, 900, 1600, 1600), // portrait: longest side is the height
+        (800, 0, 0, 800), // unknown pixel size: cap only
+    ])
+    func renditionDimensionClamps(requested: Int, width: Int, height: Int, expected: Int) {
+        #expect(
+            PhotoService.renditionDimension(requested: requested, pixelWidth: width, pixelHeight: height) == expected
+        )
+    }
+
     // MARK: import
 
     @Test func importRejectsEmptyURLs() async {
@@ -180,5 +203,47 @@ struct AvailableURLTests {
 
         let second = PhotoKitStore.availableURL(in: dir, filename: "IMG_1.HEIC")
         #expect(second.lastPathComponent == "IMG_1 (1).HEIC")
+    }
+}
+
+struct WriteAllOrNothingTests {
+    private struct Boom: Error {}
+
+    private func makeDir() throws -> URL {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("photos-automation-export-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    @Test func returnsEveryWrittenURLInOrder() async throws {
+        let dir = try makeDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let urls = try await PhotoKitStore.writeAllOrNothing(["a", "b"]) { name in
+            let url = dir.appendingPathComponent(name)
+            try Data([1]).write(to: url)
+            return url
+        }
+        #expect(urls.map(\.lastPathComponent) == ["a", "b"])
+    }
+
+    @Test func removesEarlierFilesWhenALaterWriteFails() async throws {
+        let dir = try makeDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try Data([9]).write(to: dir.appendingPathComponent("preexisting"))
+
+        await #expect(throws: Boom.self) {
+            _ = try await PhotoKitStore.writeAllOrNothing(["a", "b", "c"]) { name in
+                if name == "c" {
+                    throw Boom()
+                }
+                let url = dir.appendingPathComponent(name)
+                try Data([1]).write(to: url)
+                return url
+            }
+        }
+        let left = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+        // Files from this call are gone; files that were already there stay.
+        #expect(left == ["preexisting"])
     }
 }

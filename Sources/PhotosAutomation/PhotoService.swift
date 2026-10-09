@@ -86,10 +86,15 @@ public struct PhotoService: Sendable {
                 plan.duplicateCount += 1
                 continue
             }
-            if asset.sourceType == .cloudShared { plan.copyIDs.append(asset.id) }
-            else { plan.referenceIDs.append(asset.id) }
+            if asset.sourceType == .cloudShared {
+                plan.copyIDs.append(asset.id)
+            } else {
+                plan.referenceIDs.append(asset.id)
+            }
             ids.insert(asset.id)
-            if let identity { identities.insert(identity) }
+            if let identity {
+                identities.insert(identity)
+            }
         }
         return plan
     }
@@ -376,7 +381,9 @@ public struct PhotoService: Sendable {
     }
 
     /// Exports each asset's original file (photo or video) into
-    /// `directory`, creating the directory if needed.
+    /// `directory`, creating the directory if needed. All-or-nothing: every
+    /// id is checked before anything is written, and if a later write fails
+    /// the files this call already wrote are removed.
     /// - Returns: URLs of the written files, in input order.
     public func exportOriginals(ids: [String], to directory: URL) async throws -> [URL] {
         let ids = try Self.validateIds(ids)
@@ -386,12 +393,30 @@ public struct PhotoService: Sendable {
     /// A JPEG rendition scaled to fit `maxDimension` pixels on the longest
     /// side — suitable for returning as base64 image content from an MCP
     /// tool without touching disk.
+    ///
+    /// `maxDimension` is clamped to ``maxRenditionDimension``; the store
+    /// further clamps it to the asset's own size, so a rendition is never
+    /// upscaled.
     public func imageData(id: String, maxDimension: Int = 1024) async throws -> Data {
         let id = try Self.validateNonEmpty(id, name: "id")
         guard maxDimension > 0 else {
             throw PhotoServiceError.invalidInput("maxDimension must be positive")
         }
-        return try await store.imageData(id: id, maxDimension: maxDimension)
+        return try await store.imageData(id: id, maxDimension: min(maxDimension, Self.maxRenditionDimension))
+    }
+
+    /// Largest longest-side, in pixels, that ``imageData(id:maxDimension:)``
+    /// will render. An unbounded value would make PhotoKit decode (and
+    /// upscale to) an arbitrarily large bitmap and exhaust memory.
+    public static let maxRenditionDimension = 4096
+
+    /// The longest-side pixel size to request for a rendition: `requested`,
+    /// capped at ``maxRenditionDimension`` and at the asset's own longest
+    /// side (when known), so it is never upscaled.
+    static func renditionDimension(requested: Int, pixelWidth: Int, pixelHeight: Int) -> Int {
+        let capped = min(requested, maxRenditionDimension)
+        let longest = max(pixelWidth, pixelHeight)
+        return longest > 0 ? min(capped, longest) : capped
     }
 
     /// Imports image/video files into the library, optionally adding them

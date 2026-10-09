@@ -18,6 +18,8 @@ public protocol PhotoLibraryStore: Sendable {
     func assets(ids: [String]) async throws -> [PhotoAsset]
     /// Writes each asset's original resource (photo or video file) into
     /// `directory`, creating it if needed. Returns the written file URLs.
+    /// All-or-nothing: throws before writing when any id is unknown, and
+    /// removes this call's files when a later write fails.
     func exportOriginals(ids: [String], to directory: URL) async throws -> [URL]
     /// A JPEG rendition of the asset scaled to fit `maxDimension` pixels
     /// on its longest side.
@@ -51,14 +53,17 @@ public protocol PhotoLibraryStore: Sendable {
 
 public extension PhotoLibraryStore {
     func copyAlbum(sourceAlbumId: String, targetAlbumId: String, dryRun: Bool, cleanPhantoms: Bool,
-                   progress: (@Sendable (PhotoCopyProgress) -> Void)?) async throws -> PhotoCopyResult {
+                   progress _: (@Sendable (PhotoCopyProgress) -> Void)?) async throws -> PhotoCopyResult
+    {
         try await copyAlbum(sourceAlbumId: sourceAlbumId, targetAlbumId: targetAlbumId,
                             dryRun: dryRun, cleanPhantoms: cleanPhantoms)
     }
 
     func copyAlbum(sourceAlbumId: String, targetAlbumId: String, dryRun: Bool, cleanPhantoms: Bool) async throws -> PhotoCopyResult {
         guard !cleanPhantoms else {
-            throw PhotoServiceError.operationFailed("this Photos store does not support cleaning cloud-shared phantom members")
+            throw PhotoServiceError.operationFailed(
+                "this Photos store does not support cleaning cloud-shared phantom members"
+            )
         }
         return try await copyAlbum(sourceAlbumId: sourceAlbumId, targetAlbumId: targetAlbumId, dryRun: dryRun)
     }

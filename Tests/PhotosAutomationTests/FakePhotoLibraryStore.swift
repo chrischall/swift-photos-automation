@@ -19,7 +19,9 @@ final class FakePhotoLibraryStore: PhotoLibraryStore, @unchecked Sendable {
 
     private func record(_ call: String) throws {
         calls.append(call)
-        if let errorToThrow { throw errorToThrow }
+        if let errorToThrow {
+            throw errorToThrow
+        }
     }
 
     func listAlbums() async throws -> [PhotoAlbum] {
