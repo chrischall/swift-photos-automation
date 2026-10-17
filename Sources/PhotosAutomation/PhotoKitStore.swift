@@ -287,7 +287,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
                 // the bitmap is not buffered a second time.
                 guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
                       let jpeg = NSBitmapImageRep(cgImage: cgImage)
-                      .representation(using: .jpeg, properties: [.compressionFactor: 0.85])
+                          .representation(using: .jpeg, properties: [.compressionFactor: 0.85])
                 else {
                     c.resume(throwing: PhotoServiceError.operationFailed("could not encode JPEG for \(id)"))
                     return
