@@ -5,24 +5,24 @@ import Testing
 struct PhotoServiceReadTests {
     private func makeService(
         store: FakePhotoLibraryStore = FakePhotoLibraryStore(),
-        runner: FakeAppleScriptRunner = FakeAppleScriptRunner()
+        runner: FakeAppleScriptRunner = FakeAppleScriptRunner(),
     ) -> PhotoService {
         PhotoService(store: store, runner: runner)
     }
 
     // MARK: listAlbums
 
-    @Test func copyAlbumPassesIdsAndDryRunThrough() async throws {
+    @Test func `copy album passes ids and dry run through`() async throws {
         let store = FakePhotoLibraryStore()
         store.copyResult.addedByReference = 2
         let result = try await makeService(store: store).copyAlbum(
-            sourceAlbumId: "shared", targetAlbumId: "local", dryRun: true, cleanPhantoms: true
+            sourceAlbumId: "shared", targetAlbumId: "local", dryRun: true, cleanPhantoms: true,
         )
         #expect(result.addedByReference == 2)
         #expect(store.calls.contains("copyAlbum(shared, local, dryRun: true, cleanPhantoms: true)"))
     }
 
-    @Test func listAlbumsReturnsStoreAlbums() async throws {
+    @Test func `list albums returns store albums`() async throws {
         let store = FakePhotoLibraryStore()
         store.albums = [PhotoAlbum(id: "a1", title: "Trips", assetCount: 3)]
         let albums = try await makeService(store: store).listAlbums()
@@ -31,25 +31,25 @@ struct PhotoServiceReadTests {
 
     // MARK: listAssets
 
-    @Test func listAssetsBuildsCriteriaFromArguments() async throws {
+    @Test func `list assets builds criteria from arguments`() async throws {
         let store = FakePhotoLibraryStore()
         _ = try await makeService(store: store).listAssets(albumId: "alb1", limit: 10)
         #expect(store.lastCriteria == PhotoSearchCriteria(albumId: "alb1", limit: 10))
     }
 
-    @Test func listAssetsDefaults() async throws {
+    @Test func `list assets defaults`() async throws {
         let store = FakePhotoLibraryStore()
         _ = try await makeService(store: store).listAssets()
         #expect(store.lastCriteria == PhotoSearchCriteria())
     }
 
-    @Test func listAssetsRejectsNonPositiveLimit() async {
+    @Test func `list assets rejects non positive limit`() async {
         await #expect(throws: PhotoServiceError.invalidInput("limit must be positive")) {
             _ = try await self.makeService().listAssets(limit: 0)
         }
     }
 
-    @Test func listAssetsRejectsEmptyAlbumId() async {
+    @Test func `list assets rejects empty album id`() async {
         await #expect(throws: PhotoServiceError.invalidInput("albumId must not be empty")) {
             _ = try await self.makeService().listAssets(albumId: "  ")
         }
@@ -57,7 +57,7 @@ struct PhotoServiceReadTests {
 
     // MARK: search
 
-    @Test func searchPassesCriteriaThrough() async throws {
+    @Test func `search passes criteria through`() async throws {
         let store = FakePhotoLibraryStore()
         store.searchResults = [PhotoAsset(id: "X")]
         let criteria = PhotoSearchCriteria(favoritesOnly: true, limit: 5)
@@ -66,13 +66,13 @@ struct PhotoServiceReadTests {
         #expect(store.lastCriteria == criteria)
     }
 
-    @Test func searchRejectsNonPositiveLimit() async {
+    @Test func `search rejects non positive limit`() async {
         await #expect(throws: PhotoServiceError.invalidInput("limit must be positive")) {
             _ = try await self.makeService().search(criteria: PhotoSearchCriteria(limit: -1))
         }
     }
 
-    @Test func searchRejectsBlankAlbumId() async {
+    @Test func `search rejects blank album id`() async {
         await #expect(throws: PhotoServiceError.invalidInput("albumId must not be empty")) {
             _ = try await self.makeService().search(criteria: PhotoSearchCriteria(albumId: "  "))
         }
@@ -80,19 +80,19 @@ struct PhotoServiceReadTests {
 
     // MARK: asset(id:)
 
-    @Test func assetRejectsEmptyId() async {
+    @Test func `asset rejects empty id`() async {
         await #expect(throws: PhotoServiceError.invalidInput("id must not be empty")) {
             _ = try await self.makeService().asset(id: "")
         }
     }
 
-    @Test func assetNotFoundThrows() async {
+    @Test func `asset not found throws`() async {
         await #expect(throws: PhotoServiceError.notFound("asset missing-id")) {
             _ = try await self.makeService().asset(id: "missing-id")
         }
     }
 
-    @Test func assetHydratesMetadataFromAppleScript() async throws {
+    @Test func `asset hydrates metadata from apple script`() async throws {
         let store = FakePhotoLibraryStore()
         store.assetsById["A/L0/001"] = PhotoAsset(id: "A/L0/001")
         let runner = FakeAppleScriptRunner()
@@ -105,7 +105,7 @@ struct PhotoServiceReadTests {
         #expect(runner.calls[0].contains(#"media item id "A/L0/001""#))
     }
 
-    @Test func assetEmptyMetadataStaysNil() async throws {
+    @Test func `asset empty metadata stays nil`() async throws {
         let store = FakePhotoLibraryStore()
         store.assetsById["A"] = PhotoAsset(id: "A")
         let runner = FakeAppleScriptRunner()
@@ -116,7 +116,7 @@ struct PhotoServiceReadTests {
         #expect(asset.keywords == nil)
     }
 
-    @Test func assetSurvivesAppleScriptFailure() async throws {
+    @Test func `asset survives apple script failure`() async throws {
         let store = FakePhotoLibraryStore()
         store.assetsById["A"] = PhotoAsset(id: "A")
         let runner = FakeAppleScriptRunner()
@@ -128,26 +128,26 @@ struct PhotoServiceReadTests {
 
     // MARK: parse helper
 
-    @Test func parseMetadataLineMalformedReturnsNils() {
+    @Test func `parse metadata line malformed returns nils`() {
         let meta = PhotoService.parseMetadataLine("only-one-field")
         #expect(meta.title == nil)
         #expect(meta.description == nil)
         #expect(meta.keywords == nil)
     }
 
-    @Test func parseMetadataLineKeepsCommasInKeywords() {
+    @Test func `parse metadata line keeps commas in keywords`() {
         let meta = PhotoService.parseMetadataLine("T\u{1E}D\u{1E}Smith, John\u{1F}beach")
         #expect(meta.keywords == ["Smith, John", "beach"])
     }
 
-    @Test func parseMetadataLineKeepsTabsInTitleAndDescription() {
+    @Test func `parse metadata line keeps tabs in title and description`() {
         let meta = PhotoService.parseMetadataLine("Title\twith tab\u{1E}pasted\ttext\u{1E}kw")
         #expect(meta.title == "Title\twith tab")
         #expect(meta.description == "pasted\ttext")
         #expect(meta.keywords == ["kw"])
     }
 
-    @Test func metadataScriptUsesControlCharacterDelimiters() {
+    @Test func `metadata script uses control character delimiters`() {
         let script = PhotoService.metadataScript(id: "A")
         #expect(script.contains("character id 30"))
         #expect(script.contains("character id 31"))
@@ -155,7 +155,7 @@ struct PhotoServiceReadTests {
         #expect(!script.contains(#"delimiters to ",""#))
     }
 
-    @Test func escapeForAppleScript() {
+    @Test func `escape for apple script`() {
         #expect(PhotoService.escapeForAppleScript(#"say "hi" \now"#) == #"say \"hi\" \\now"#)
     }
 }

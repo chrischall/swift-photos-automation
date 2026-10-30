@@ -3,7 +3,7 @@ import Foundation
 import Testing
 
 struct PhotoCopyProvenanceStoreTests {
-    @Test func mappingsPersistAndMergeAcrossWrites() throws {
+    @Test func `mappings persist and merge across writes`() throws {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("PhotoCopyProvenance-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }

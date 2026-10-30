@@ -7,38 +7,38 @@ struct PhotoServiceMetadataWriteTests {
         PhotoService(store: FakePhotoLibraryStore(), runner: runner)
     }
 
-    @Test func setTitleGeneratesScript() async throws {
+    @Test func `set title generates script`() async throws {
         let runner = FakeAppleScriptRunner()
         try await make(runner).setTitle(id: "A/L0/001", "My \"Best\" Shot")
         #expect(runner.calls.count == 1)
         #expect(runner.calls[0].contains(#"set name of media item id "A/L0/001" to "My \"Best\" Shot""#))
     }
 
-    @Test func setTitleRejectsEmptyId() async {
+    @Test func `set title rejects empty id`() async {
         await #expect(throws: PhotoServiceError.invalidInput("id must not be empty")) {
             try await self.make().setTitle(id: " ", "x")
         }
     }
 
-    @Test func setDescriptionGeneratesScript() async throws {
+    @Test func `set description generates script`() async throws {
         let runner = FakeAppleScriptRunner()
         try await make(runner).setDescription(id: "A", "Golden hour")
         #expect(runner.calls[0].contains(#"set description of media item id "A" to "Golden hour""#))
     }
 
-    @Test func setKeywordsGeneratesListLiteral() async throws {
+    @Test func `set keywords generates list literal`() async throws {
         let runner = FakeAppleScriptRunner()
         try await make(runner).setKeywords(id: "A", ["beach", "sun\"set"])
         #expect(runner.calls[0].contains(#"set keywords of media item id "A" to {"beach", "sun\"set"}"#))
     }
 
-    @Test func setKeywordsEmptyClearsWithEmptyList() async throws {
+    @Test func `set keywords empty clears with empty list`() async throws {
         let runner = FakeAppleScriptRunner()
         try await make(runner).setKeywords(id: "A", [])
         #expect(runner.calls[0].contains(#"set keywords of media item id "A" to {}"#))
     }
 
-    @Test func appleScriptErrorPropagates() async {
+    @Test func `apple script error propagates`() async {
         let runner = FakeAppleScriptRunner()
         runner.queueError("no permission")
         await #expect(throws: AppleScriptError.runtime("no permission")) {

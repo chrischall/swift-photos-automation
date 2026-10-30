@@ -40,7 +40,7 @@ public struct PhotoService: Sendable {
         sourceAlbumId: String,
         targetAlbumId: String,
         dryRun: Bool = false,
-        cleanPhantoms: Bool = false
+        cleanPhantoms: Bool = false,
     ) async throws -> PhotoCopyResult {
         try await copyAlbum(sourceAlbumId: sourceAlbumId, targetAlbumId: targetAlbumId,
                             dryRun: dryRun, cleanPhantoms: cleanPhantoms, progress: nil)
@@ -51,7 +51,7 @@ public struct PhotoService: Sendable {
         targetAlbumId: String,
         dryRun: Bool = false,
         cleanPhantoms: Bool = false,
-        progress: (@Sendable (PhotoCopyProgress) -> Void)?
+        progress: (@Sendable (PhotoCopyProgress) -> Void)?,
     ) async throws -> PhotoCopyResult {
         let sourceAlbumId = try Self.validateNonEmpty(sourceAlbumId, name: "sourceAlbumId")
         let targetAlbumId = try Self.validateNonEmpty(targetAlbumId, name: "targetAlbumId")
@@ -60,7 +60,7 @@ public struct PhotoService: Sendable {
             targetAlbumId: targetAlbumId,
             dryRun: dryRun,
             cleanPhantoms: cleanPhantoms,
-            progress: progress
+            progress: progress,
         )
     }
 

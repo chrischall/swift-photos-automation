@@ -29,19 +29,19 @@ struct PhotoServicePathConfinementTests {
 
     // MARK: isWithin (pure)
 
-    @Test func rootItselfIsWithin() throws {
+    @Test func `root itself is within`() throws {
         let box = try makeSandbox()
         defer { try? FileManager.default.removeItem(at: box.base) }
         #expect(PhotoService.isWithin(box.root, root: box.root))
     }
 
-    @Test func notYetCreatedSubdirectoryIsWithin() throws {
+    @Test func `not yet created subdirectory is within`() throws {
         let box = try makeSandbox()
         defer { try? FileManager.default.removeItem(at: box.base) }
         #expect(PhotoService.isWithin(box.root.appendingPathComponent("new/deeper"), root: box.root))
     }
 
-    @Test func resolvedAndUnresolvedSpellingsAgree() throws {
+    @Test func `resolved and unresolved spellings agree`() throws {
         let box = try makeSandbox()
         defer { try? FileManager.default.removeItem(at: box.base) }
         let resolvedRoot = box.root.resolvingSymlinksInPath()
@@ -49,20 +49,20 @@ struct PhotoServicePathConfinementTests {
         #expect(PhotoService.isWithin(resolvedRoot.appendingPathComponent("x"), root: box.root))
     }
 
-    @Test func siblingDirectoryIsOutside() throws {
+    @Test func `sibling directory is outside`() throws {
         let box = try makeSandbox()
         defer { try? FileManager.default.removeItem(at: box.base) }
         #expect(!PhotoService.isWithin(box.outside, root: box.root))
     }
 
-    @Test func namePrefixSiblingIsOutside() throws {
+    @Test func `name prefix sibling is outside`() throws {
         let box = try makeSandbox()
         defer { try? FileManager.default.removeItem(at: box.base) }
         // `/…/root-evil` shares a string prefix with `/…/root` but is not inside it.
         #expect(!PhotoService.isWithin(box.base.appendingPathComponent("root-evil"), root: box.root))
     }
 
-    @Test func dotDotEscapeIsOutside() throws {
+    @Test func `dot dot escape is outside`() throws {
         let box = try makeSandbox()
         defer { try? FileManager.default.removeItem(at: box.base) }
         let escape = URL(fileURLWithPath: box.root.path + "/../outside")
@@ -71,7 +71,7 @@ struct PhotoServicePathConfinementTests {
         #expect(!PhotoService.isWithin(deepEscape, root: box.root))
     }
 
-    @Test func symlinkInsideRootPointingOutsideIsOutside() throws {
+    @Test func `symlink inside root pointing outside is outside`() throws {
         let box = try makeSandbox()
         defer { try? FileManager.default.removeItem(at: box.base) }
         let link = box.root.appendingPathComponent("link")
@@ -80,14 +80,14 @@ struct PhotoServicePathConfinementTests {
         #expect(!PhotoService.isWithin(link.appendingPathComponent("new"), root: box.root))
     }
 
-    @Test func danglingSymlinkInsideRootIsOutside() throws {
+    @Test func `dangling symlink inside root is outside`() throws {
         let box = try makeSandbox()
         defer { try? FileManager.default.removeItem(at: box.base) }
         // realpath cannot resolve a link whose target does not exist yet,
         // but mkdir/write through it would still land outside the root.
         let link = box.root.appendingPathComponent("dangling")
         try FileManager.default.createSymbolicLink(
-            at: link, withDestinationURL: box.outside.appendingPathComponent("not-yet")
+            at: link, withDestinationURL: box.outside.appendingPathComponent("not-yet"),
         )
         #expect(!PhotoService.isWithin(link, root: box.root))
         #expect(!PhotoService.isWithin(link.appendingPathComponent("new"), root: box.root))
@@ -95,7 +95,7 @@ struct PhotoServicePathConfinementTests {
 
     // MARK: exportOriginals
 
-    @Test func exportInsideRootPassesThrough() async throws {
+    @Test func `export inside root passes through`() async throws {
         let box = try makeSandbox()
         defer { try? FileManager.default.removeItem(at: box.base) }
         let dir = box.root.appendingPathComponent("exports")
@@ -103,25 +103,25 @@ struct PhotoServicePathConfinementTests {
         #expect(store.calls == [#"exportOriginals(["a"], to: \#(dir.path))"#])
     }
 
-    @Test func exportOutsideRootIsRefusedBeforeTouchingTheLibrary() async throws {
+    @Test func `export outside root is refused before touching the library`() async throws {
         let box = try makeSandbox()
         defer { try? FileManager.default.removeItem(at: box.base) }
         await #expect(
-            throws: PhotoServiceError.invalidInput("directory is outside the allowed root: \(box.outside.path)")
+            throws: PhotoServiceError.invalidInput("directory is outside the allowed root: \(box.outside.path)"),
         ) {
             _ = try await self.service.exportOriginals(ids: ["a"], to: box.outside, allowedRoot: box.root)
         }
         #expect(store.calls.isEmpty)
     }
 
-    @Test func exportWithoutRootIsUnconfined() async throws {
+    @Test func `export without root is unconfined`() async throws {
         _ = try await service.exportOriginals(ids: ["a"], to: URL(fileURLWithPath: "/anywhere"))
         #expect(store.calls == [#"exportOriginals(["a"], to: /anywhere)"#])
     }
 
     // MARK: importFiles
 
-    @Test func importInsideRootPassesThrough() async throws {
+    @Test func `import inside root passes through`() async throws {
         let box = try makeSandbox()
         defer { try? FileManager.default.removeItem(at: box.base) }
         let file = box.root.appendingPathComponent("in.png")
@@ -130,7 +130,7 @@ struct PhotoServicePathConfinementTests {
         #expect(store.calls == [#"importFiles(["in.png"], toAlbum: nil)"#])
     }
 
-    @Test func importOutsideRootIsRefusedBeforeTouchingTheLibrary() async throws {
+    @Test func `import outside root is refused before touching the library`() async throws {
         let box = try makeSandbox()
         defer { try? FileManager.default.removeItem(at: box.base) }
         let inside = box.root.appendingPathComponent("in.png")
@@ -138,27 +138,27 @@ struct PhotoServicePathConfinementTests {
         try writePNG(inside)
         try writePNG(outside)
         await #expect(
-            throws: PhotoServiceError.invalidInput("file is outside the allowed root: \(outside.path)")
+            throws: PhotoServiceError.invalidInput("file is outside the allowed root: \(outside.path)"),
         ) {
             _ = try await self.service.importFiles(urls: [inside, outside], allowedRoot: box.root)
         }
         #expect(store.calls.isEmpty)
     }
 
-    @Test func importRefusesOutsidePathBeforeCheckingItExists() async throws {
+    @Test func `import refuses outside path before checking it exists`() async throws {
         let box = try makeSandbox()
         defer { try? FileManager.default.removeItem(at: box.base) }
         // The confinement error comes first, so a refused caller learns
         // nothing about whether the outside path exists.
         let ghost = box.outside.appendingPathComponent("ghost.png")
         await #expect(
-            throws: PhotoServiceError.invalidInput("file is outside the allowed root: \(ghost.path)")
+            throws: PhotoServiceError.invalidInput("file is outside the allowed root: \(ghost.path)"),
         ) {
             _ = try await self.service.importFiles(urls: [ghost], allowedRoot: box.root)
         }
     }
 
-    @Test func importRefusesSymlinkThatLeavesTheRoot() async throws {
+    @Test func `import refuses symlink that leaves the root`() async throws {
         let box = try makeSandbox()
         defer { try? FileManager.default.removeItem(at: box.base) }
         let target = box.outside.appendingPathComponent("secret.png")
@@ -166,7 +166,7 @@ struct PhotoServicePathConfinementTests {
         let link = box.root.appendingPathComponent("looks-local.png")
         try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
         await #expect(
-            throws: PhotoServiceError.invalidInput("file is outside the allowed root: \(link.path)")
+            throws: PhotoServiceError.invalidInput("file is outside the allowed root: \(link.path)"),
         ) {
             _ = try await self.service.importFiles(urls: [link], allowedRoot: box.root)
         }

@@ -13,7 +13,7 @@ let package = Package(
             swiftSettings: [
                 .enableUpcomingFeature("ExistentialAny"),
                 .enableUpcomingFeature("MemberImportVisibility"),
-            ]
+            ],
         ),
         .testTarget(
             name: "PhotosAutomationTests",
@@ -21,8 +21,8 @@ let package = Package(
             swiftSettings: [
                 .enableUpcomingFeature("ExistentialAny"),
                 .enableUpcomingFeature("MemberImportVisibility"),
-            ]
+            ],
         ),
     ],
-    swiftLanguageModes: [.v6]
+    swiftLanguageModes: [.v6],
 )

@@ -3,7 +3,7 @@ import Foundation
 import Testing
 
 struct PhotoCopyPlanTests {
-    @Test func planSkipsIdsAndPreviouslyImportedCopies() {
+    @Test func `plan skips ids and previously imported copies`() {
         let date = Date(timeIntervalSince1970: 1_700_000_000)
         let target = [
             PhotoAsset(id: "same-id", originalFilename: "IMG_0.HEIC", creationDate: date,
@@ -32,7 +32,7 @@ struct PhotoCopyPlanTests {
         #expect(plan.copyIDs == ["new-shared"])
     }
 
-    @Test func cloudSharedTargetMembersNeverSuppressImports() {
+    @Test func `cloud shared target members never suppress imports`() {
         let date = Date(timeIntervalSince1970: 1_700_000_000)
         let phantom = PhotoAsset(id: "phantom", originalFilename: "IMG_1.HEIC", creationDate: date,
                                  pixelWidth: 100, pixelHeight: 80, sourceType: .cloudShared)
@@ -46,7 +46,7 @@ struct PhotoCopyPlanTests {
         #expect(plan.copyIDs == ["shared"])
     }
 
-    @Test func incompleteCopyIdentityDoesNotMatchUnrelatedAssets() {
+    @Test func `incomplete copy identity does not match unrelated assets`() {
         let source = PhotoAsset(id: "source", sourceType: .cloudShared)
         let target = PhotoAsset(id: "target")
 
@@ -56,7 +56,7 @@ struct PhotoCopyPlanTests {
         #expect(plan.copyIDs == ["source"])
     }
 
-    @Test func provenanceMatchesOwnCopyEvenWhenFilenameAndDimensionsChanged() {
+    @Test func `provenance matches own copy even when filename and dimensions changed`() {
         let source = PhotoAsset(id: "shared-guid", originalFilename: "IMG_1.HEIC", creationDate: Date(),
                                 pixelWidth: 4000, pixelHeight: 3000, sourceType: .cloudShared)
         let target = PhotoAsset(id: "local-copy", originalFilename: "IMG_1.jpg", creationDate: Date(),
@@ -67,7 +67,7 @@ struct PhotoCopyPlanTests {
         #expect(plan.copyIDs.isEmpty)
     }
 
-    @Test func legacyFallbackIgnoresExtensionAndDimensions() {
+    @Test func `legacy fallback ignores extension and dimensions`() {
         let date = Date(timeIntervalSince1970: 1_700_000_000)
         let source = PhotoAsset(id: "shared", originalFilename: "IMG_1.HEIC", creationDate: date,
                                 pixelWidth: 4000, pixelHeight: 3000, sourceType: .cloudShared)
@@ -77,13 +77,13 @@ struct PhotoCopyPlanTests {
         #expect(plan.duplicateCount == 1)
     }
 
-    @Test func copyBatchRangesUseTwentyFiveItemBatches() {
+    @Test func `copy batch ranges use twenty five item batches`() {
         #expect(PhotoService.copyBatchRanges(count: 0).isEmpty)
         #expect(PhotoService.copyBatchRanges(count: 25) == [0 ..< 25])
         #expect(PhotoService.copyBatchRanges(count: 51) == [0 ..< 25, 25 ..< 50, 50 ..< 51])
     }
 
-    @Test func copyableResourceKindsIncludeLivePhotoPairAndVideo() {
+    @Test func `copyable resource kinds include live photo pair and video`() {
         let kinds: [PhotoService.CopyResourceKind] = [.other, .photo, .pairedVideo, .video, .other]
         #expect(PhotoService.copyableResourceIndices(kinds) == [1, 2, 3])
     }

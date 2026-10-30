@@ -35,7 +35,7 @@ swiftformat . --lint                                 # lint (config in .swiftfor
 
 ### Non-obvious constraints to respect
 
-1. **Asset IDs**: PhotoKit `localIdentifier` == AppleScript `media item id`. The integration test's title round-trip (`metadataRoundTrip`, AppleScript-gated) is the canary; if it breaks on a macOS update, add id normalization in the script builders.
+1. **Asset IDs**: PhotoKit `localIdentifier` == AppleScript `media item id`. The integration test's title round-trip (`metadata round-trip via AppleScript`, AppleScript-gated) is the canary; if it breaks on a macOS update, add id normalization in the script builders.
 2. **Every string interpolated into AppleScript must go through `PhotoService.escapeForAppleScript`** (backslashes before quotes).
 3. **`NSAppleScript` is non-reentrant inside test bundles** — any suite that runs it live carries `.serialized` and the `PHOTOS_AUTOMATION_APPLESCRIPT` gate on top of the base integration gate (error -1751 flakes otherwise).
 4. **No deletion of assets or albums, ever** — PhotoKit deletion of either always shows a blocking confirmation dialog. The integration suite therefore deletes nothing it creates: the imported 1×1 test PNG and the uniquely-named `PhotosAutomationTests-*` album both stay in the library (documented in README; remove by hand).

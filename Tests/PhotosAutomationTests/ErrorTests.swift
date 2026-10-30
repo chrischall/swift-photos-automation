@@ -3,12 +3,12 @@ import Foundation
 import Testing
 
 struct AppleScriptErrorTests {
-    @Test func runtimeDescription() {
+    @Test func `runtime description`() {
         let error = AppleScriptError.runtime("Photos got an error")
         #expect(error.errorDescription == "AppleScript runtime error: Photos got an error")
     }
 
-    @Test func compileDescription() {
+    @Test func `compile description`() {
         let error = AppleScriptError.compile("bad source")
         #expect(error.errorDescription == "AppleScript compile error: bad source")
     }

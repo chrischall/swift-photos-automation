@@ -26,7 +26,7 @@ struct PhotoServiceIntegrationTests {
     /// on first run) but no Automation permission.
     static let enabledTrait: any TestTrait = .disabled(
         if: ProcessInfo.processInfo.environment["PHOTOS_AUTOMATION_INTEGRATION"] != "1",
-        "set PHOTOS_AUTOMATION_INTEGRATION=1 to run against the real Photos library"
+        "set PHOTOS_AUTOMATION_INTEGRATION=1 to run against the real Photos library",
     )
 
     /// Gate for tests that drive Photos.app over AppleScript (metadata
@@ -41,7 +41,7 @@ struct PhotoServiceIntegrationTests {
     /// gate is about the test-bundle environment, not the code.
     static let appleScriptTrait: any TestTrait = .disabled(
         if: ProcessInfo.processInfo.environment["PHOTOS_AUTOMATION_APPLESCRIPT"] != "1",
-        "set PHOTOS_AUTOMATION_APPLESCRIPT=1 (plus Automation → Photos permission) to run AppleScript-backed tests"
+        "set PHOTOS_AUTOMATION_APPLESCRIPT=1 (plus Automation → Photos permission) to run AppleScript-backed tests",
     )
 
     /// Album-name prefix for test artifacts. Not used for automated cleanup
@@ -62,13 +62,13 @@ struct PhotoServiceIntegrationTests {
         return url
     }
 
-    @Test("list albums does not throw", Self.enabledTrait)
-    func listAlbums() async throws {
+    @Test(Self.enabledTrait)
+    func `list albums does not throw`() async throws {
         _ = try await Self.makeService().listAlbums()
     }
 
-    @Test("copies shared album items into a throwaway local album", Self.enabledTrait)
-    func copySharedAlbum() async throws {
+    @Test(Self.enabledTrait)
+    func `copies shared album items into a throwaway local album`() async throws {
         guard let sourceId = ProcessInfo.processInfo.environment["PHOTOS_SHARED_SOURCE_ALBUM_ID"], !sourceId.isEmpty else {
             return
         }
@@ -92,8 +92,8 @@ struct PhotoServiceIntegrationTests {
         }
     }
 
-    @Test("structured search returns limited results", Self.enabledTrait)
-    func structuredSearch() async throws {
+    @Test(Self.enabledTrait)
+    func `structured search returns limited results`() async throws {
         let results = try await Self.makeService()
             .search(criteria: PhotoSearchCriteria(limit: 5))
         #expect(results.count <= 5)
@@ -108,9 +108,9 @@ struct PhotoServiceIntegrationTests {
     /// export → remove. Every step here is silent (no confirmation dialog,
     /// no AppleScript), so this runs unattended once Photos access is
     /// granted. Metadata writes and the id-equivalence canary live in
-    /// ``metadataRoundTrip()`` (AppleScript-gated).
-    @Test("end-to-end (PhotoKit): import, album, favorite, rendition, export", Self.enabledTrait)
-    func endToEndPhotoKit() async throws {
+    /// the AppleScript `metadata round-trip` test (AppleScript-gated).
+    @Test(Self.enabledTrait)
+    func `end-to-end (PhotoKit): import, album, favorite, rendition, export`() async throws {
         let service = Self.makeService()
         let store = PhotoKitStore()
 
@@ -126,7 +126,7 @@ struct PhotoServiceIntegrationTests {
         // `UUID/L0/NNN` — the same shape Photos' AppleScript dictionary
         // returns as `media item id`, which is what lets one id drive both
         // transports. (The live AppleScript half is asserted in
-        // ``metadataRoundTrip()``.)
+        // the AppleScript `metadata round-trip` test.)
         #expect(assetId.contains("/L0/"))
 
         // Create a uniquely named album and add the asset. The album is
@@ -167,8 +167,8 @@ struct PhotoServiceIntegrationTests {
     /// live proof that a PhotoKit `localIdentifier` also works as an
     /// AppleScript `media item id` (title/keywords written via AppleScript
     /// are read back on the same id). Requires Automation → Photos.
-    @Test("metadata round-trip via AppleScript (title, keywords)", Self.enabledTrait, Self.appleScriptTrait)
-    func metadataRoundTrip() async throws {
+    @Test(Self.enabledTrait, Self.appleScriptTrait)
+    func `metadata round-trip via AppleScript (title, keywords)`() async throws {
         let service = Self.makeService()
         let png = try Self.writeTestPNG()
         defer { try? FileManager.default.removeItem(at: png) }
@@ -189,8 +189,8 @@ struct PhotoServiceIntegrationTests {
         #expect(keyworded.keywords == ["photosautomation-test"])
     }
 
-    @Test("free-text search does not throw", Self.enabledTrait, Self.appleScriptTrait)
-    func freeTextSearch() async throws {
+    @Test(Self.enabledTrait, Self.appleScriptTrait)
+    func `free-text search does not throw`() async throws {
         // Fresh imports may not be indexed yet, so assert only that the
         // call succeeds — not that it finds anything.
         _ = try await Self.makeService().searchText("test", limit: 5)
