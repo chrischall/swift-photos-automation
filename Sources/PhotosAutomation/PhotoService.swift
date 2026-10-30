@@ -174,7 +174,7 @@ public struct PhotoService: Sendable {
 
     /// Returns the trimmed value, or throws `.invalidInput` when blank.
     @discardableResult
-    static func validateNonEmpty(_ value: String, name: String) throws -> String {
+    static func validateNonEmpty(_ value: String, name: String) throws(PhotoServiceError) -> String {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             throw PhotoServiceError.invalidInput("\(name) must not be empty")
@@ -183,7 +183,7 @@ public struct PhotoService: Sendable {
     }
 
     /// Throws `.invalidInput` when `limit` is not positive.
-    static func validatePositive(_ limit: Int) throws {
+    static func validatePositive(_ limit: Int) throws(PhotoServiceError) {
         guard limit > 0 else {
             throw PhotoServiceError.invalidInput("limit must be positive")
         }
@@ -528,7 +528,7 @@ public struct PhotoService: Sendable {
 
     /// Validates an id array: non-empty, no blank members.
     /// - Returns: The ids, trimmed.
-    static func validateIds(_ ids: [String]) throws -> [String] {
+    static func validateIds(_ ids: [String]) throws(PhotoServiceError) -> [String] {
         guard !ids.isEmpty else {
             throw PhotoServiceError.invalidInput("ids must not be empty")
         }
@@ -547,7 +547,7 @@ public struct PhotoService: Sendable {
 
     /// Throws `.invalidInput` unless `url` is an existing regular file
     /// whose extension maps to an image or video type.
-    static func validateImportable(_ url: URL) throws {
+    static func validateImportable(_ url: URL) throws(PhotoServiceError) {
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
             throw PhotoServiceError.invalidInput("file does not exist: \(url.path)")
