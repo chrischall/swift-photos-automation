@@ -597,7 +597,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
         return ids.compactMap { byId[$0] }
     }
 
-    public func copyAlbum(sourceAlbumId: String, targetAlbumId: String, dryRun: Bool = false) async throws -> PhotoCopyResult {
+    @concurrent public func copyAlbum(sourceAlbumId: String, targetAlbumId: String, dryRun: Bool = false) async throws -> PhotoCopyResult {
         try await copyAlbum(
             sourceAlbumId: sourceAlbumId,
             targetAlbumId: targetAlbumId,
@@ -606,7 +606,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
         )
     }
 
-    public func copyAlbum(
+    @concurrent public func copyAlbum(
         sourceAlbumId: String,
         targetAlbumId: String,
         dryRun: Bool,
