@@ -102,7 +102,7 @@ public struct PhotoService: Sendable {
     /// Stable identity for matching a re-imported copy to its shared source.
     static func copyIdentity(_ asset: PhotoAsset) -> String? {
         guard let filename = asset.originalFilename, let creationDate = asset.creationDate else { return nil }
-        let name = URL(fileURLWithPath: filename).deletingPathExtension().lastPathComponent
+        let name = URL(filePath: filename).deletingPathExtension().lastPathComponent
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
         return "\(name)|\(creationDate.timeIntervalSince1970)"
     }

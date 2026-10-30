@@ -221,16 +221,12 @@ public struct PhotoKitStore: PhotoLibraryStore {
             let destination = Self.availableURL(in: directory, filename: item.resource.originalFilename)
             let options = PHAssetResourceRequestOptions()
             options.isNetworkAccessAllowed = true
-            try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, Error>) in
-                PHAssetResourceManager.default().writeData(
+            do {
+                try await PHAssetResourceManager.default().writeData(
                     for: item.resource, toFile: destination, options: options,
-                ) { error in
-                    if let error {
-                        c.resume(throwing: PhotoServiceError.operationFailed(error.localizedDescription))
-                    } else {
-                        c.resume()
-                    }
-                }
+                )
+            } catch {
+                throw PhotoServiceError.operationFailed(error.localizedDescription)
             }
             return destination
         }
@@ -300,13 +296,14 @@ public struct PhotoKitStore: PhotoLibraryStore {
     /// Returns a URL in `directory` for `filename`, appending ` (n)` before
     /// the extension when the name is already taken.
     static func availableURL(in directory: URL, filename: String) -> URL {
-        let base = URL(fileURLWithPath: filename).deletingPathExtension().lastPathComponent
-        let ext = URL(fileURLWithPath: filename).pathExtension
-        var candidate = directory.appendingPathComponent(filename)
+        let file = URL(filePath: filename)
+        let base = file.deletingPathExtension().lastPathComponent
+        let ext = file.pathExtension
+        var candidate = directory.appending(path: filename)
         var counter = 1
-        while FileManager.default.fileExists(atPath: candidate.path) {
+        while FileManager.default.fileExists(atPath: candidate.path(percentEncoded: false)) {
             let name = ext.isEmpty ? "\(base) (\(counter))" : "\(base) (\(counter)).\(ext)"
-            candidate = directory.appendingPathComponent(name)
+            candidate = directory.appending(path: name)
             counter += 1
         }
         return candidate
@@ -329,7 +326,8 @@ public struct PhotoKitStore: PhotoLibraryStore {
         let createdId = Locked<String?>(nil)
         try await performChanges {
             let request = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(withTitle: title)
-            createdId.value = request.placeholderForCreatedAssetCollection.localIdentifier
+            let id = request.placeholderForCreatedAssetCollection.localIdentifier
+            createdId.withLock { $0 = id }
         }
         guard let id = createdId.value,
               let collection = PHAssetCollection.fetchAssetCollections(
@@ -430,14 +428,16 @@ public struct PhotoKitStore: PhotoLibraryStore {
             {
                 albumRequest.addAssets(placeholders as NSArray)
             }
-            createdIds.value = placeholders.map(\.localIdentifier)
+            let ids = placeholders.map(\.localIdentifier)
+            createdIds.withLock { $0 = ids }
         }
-        if let shortfall = Self.importShortfall(createdIds: createdIds.value, requestedCount: urls.count) {
+        let ids = createdIds.value
+        if let shortfall = Self.importShortfall(createdIds: ids, requestedCount: urls.count) {
             throw shortfall
         }
-        let fetched = try await assets(ids: createdIds.value)
+        let fetched = try await assets(ids: ids)
         let byId = Dictionary(fetched.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        return createdIds.value.compactMap { byId[$0] }
+        return ids.compactMap { byId[$0] }
     }
 
     public func copyAlbum(sourceAlbumId: String, targetAlbumId: String, dryRun: Bool = false) async throws -> PhotoCopyResult {
@@ -536,12 +536,12 @@ public struct PhotoKitStore: PhotoLibraryStore {
             }
         }
 
-        struct StagedResource: @unchecked Sendable {
+        struct StagedResource: Sendable {
             let type: PHAssetResourceType
             let filename: String
             let url: URL
         }
-        struct StagedCopy: @unchecked Sendable {
+        struct StagedCopy: Sendable {
             let id: String
             let creationDate: Date?
             let latitude: Double?
@@ -550,7 +550,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
         }
         var pendingReferenceIDs: [String] = []
         var pendingCopies: [StagedCopy] = []
-        let tempRoot = FileManager.default.temporaryDirectory.appendingPathComponent("PhotosCopy-\(UUID().uuidString)")
+        let tempRoot = URL.temporaryDirectory.appending(path: "PhotosCopy-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: tempRoot) }
         try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
 
@@ -591,7 +591,8 @@ public struct PhotoKitStore: PhotoLibraryStore {
                         }
                         if let placeholder = request.placeholderForCreatedAsset {
                             placeholders.append(placeholder)
-                            provenance.value[copy.id] = placeholder.localIdentifier
+                            let localId = placeholder.localIdentifier
+                            provenance.withLock { $0[copy.id] = localId }
                         }
                     }
                     albumRequest.addAssets(placeholders as NSArray)
@@ -652,22 +653,14 @@ public struct PhotoKitStore: PhotoLibraryStore {
                     }
                     var staged: [StagedResource] = []
                     for resource in selected {
-                        let url = tempRoot.appendingPathComponent(UUID().uuidString + "-" + resource.originalFilename)
+                        let url = tempRoot.appending(path: UUID().uuidString + "-" + resource.originalFilename)
                         let requestOptions = PHAssetResourceRequestOptions()
                         requestOptions.isNetworkAccessAllowed = true
-                        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                            PHAssetResourceManager.default().writeData(
-                                for: resource,
-                                toFile: url,
-                                options: requestOptions,
-                            ) { error in
-                                if let error {
-                                    continuation.resume(throwing: error)
-                                } else {
-                                    continuation.resume()
-                                }
-                            }
-                        }
+                        try await PHAssetResourceManager.default().writeData(
+                            for: resource,
+                            toFile: url,
+                            options: requestOptions,
+                        )
                         staged.append(StagedResource(type: resource.type, filename: resource.originalFilename, url: url))
                     }
                     pendingCopies.append(StagedCopy(id: id, creationDate: value.creationDate,
