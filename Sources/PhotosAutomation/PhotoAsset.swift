@@ -23,9 +23,10 @@ public enum PhotoAssetSourceType: String, Equatable, Hashable, Sendable, CaseIte
 /// which is the same string Photos' AppleScript dictionary exposes as
 /// `media item id` — so one ID works across both transports.
 ///
-/// `title`, `itemDescription`, and `keywords` are only populated by
-/// ``PhotoService/asset(id:)``, which reads them via AppleScript —
-/// PhotoKit does not expose them. They are `nil` in list/search results.
+/// `itemDescription`, `keywords`, `rating`, and `fileSize` come from
+/// PhotoKit and are filled in everywhere, list and search results included.
+/// `title` has no PhotoKit API: only ``PhotoService/asset(id:)`` reads it,
+/// over AppleScript, so it is `nil` in list/search results.
 public struct PhotoAsset: Equatable, Hashable, Identifiable, Sendable {
     /// PhotoKit `localIdentifier` / AppleScript `media item id`.
     public let id: String
@@ -46,12 +47,18 @@ public struct PhotoAsset: Equatable, Hashable, Identifiable, Sendable {
     /// GPS longitude, when the asset has location data.
     public let longitude: Double?
     public let sourceType: PhotoAssetSourceType
-    /// User-assigned title ("name" in Photos). AppleScript-sourced.
+    /// User-assigned title ("name" in Photos). AppleScript-sourced, and
+    /// only filled in by ``PhotoService/asset(id:)``.
     public var title: String?
-    /// User-assigned description/caption. AppleScript-sourced.
+    /// User-assigned description/caption.
     public var itemDescription: String?
-    /// User-assigned keywords. AppleScript-sourced.
+    /// User-assigned keywords.
     public var keywords: [String]?
+    /// Star rating, 1–5; `nil` when unrated.
+    public let rating: Int?
+    /// Size in bytes of the primary resource (the original photo or video),
+    /// when PhotoKit knows it.
+    public let fileSize: Int?
 
     /// Creates an asset. All metadata parameters default to empty/unknown
     /// so tests and fakes can construct minimal instances.
@@ -69,6 +76,8 @@ public struct PhotoAsset: Equatable, Hashable, Identifiable, Sendable {
         title: String? = nil,
         itemDescription: String? = nil,
         keywords: [String]? = nil,
+        rating: Int? = nil,
+        fileSize: Int? = nil,
     ) {
         self.id = id
         self.originalFilename = originalFilename
@@ -83,5 +92,7 @@ public struct PhotoAsset: Equatable, Hashable, Identifiable, Sendable {
         self.title = title
         self.itemDescription = itemDescription
         self.keywords = keywords
+        self.rating = rating
+        self.fileSize = fileSize
     }
 }

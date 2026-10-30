@@ -92,30 +92,6 @@ struct PhotoServiceReadTests {
         }
     }
 
-    @Test func `asset hydrates metadata from apple script`() async throws {
-        let store = FakePhotoLibraryStore()
-        store.assetsById["A/L0/001"] = PhotoAsset(id: "A/L0/001")
-        let runner = FakeAppleScriptRunner()
-        runner.queue("Sunset\u{1E}Golden hour\u{1E}beach\u{1F}sunset")
-        let asset = try await makeService(store: store, runner: runner).asset(id: "A/L0/001")
-        #expect(asset.title == "Sunset")
-        #expect(asset.itemDescription == "Golden hour")
-        #expect(asset.keywords == ["beach", "sunset"])
-        #expect(runner.calls.count == 1)
-        #expect(runner.calls[0].contains(#"media item id "A/L0/001""#))
-    }
-
-    @Test func `asset empty metadata stays nil`() async throws {
-        let store = FakePhotoLibraryStore()
-        store.assetsById["A"] = PhotoAsset(id: "A")
-        let runner = FakeAppleScriptRunner()
-        runner.queue("\u{1E}\u{1E}")
-        let asset = try await makeService(store: store, runner: runner).asset(id: "A")
-        #expect(asset.title == nil)
-        #expect(asset.itemDescription == nil)
-        #expect(asset.keywords == nil)
-    }
-
     @Test func `asset survives apple script failure`() async throws {
         let store = FakePhotoLibraryStore()
         store.assetsById["A"] = PhotoAsset(id: "A")
@@ -124,35 +100,6 @@ struct PhotoServiceReadTests {
         let asset = try await makeService(store: store, runner: runner).asset(id: "A")
         #expect(asset.id == "A")
         #expect(asset.title == nil)
-    }
-
-    // MARK: parse helper
-
-    @Test func `parse metadata line malformed returns nils`() {
-        let meta = PhotoService.parseMetadataLine("only-one-field")
-        #expect(meta.title == nil)
-        #expect(meta.description == nil)
-        #expect(meta.keywords == nil)
-    }
-
-    @Test func `parse metadata line keeps commas in keywords`() {
-        let meta = PhotoService.parseMetadataLine("T\u{1E}D\u{1E}Smith, John\u{1F}beach")
-        #expect(meta.keywords == ["Smith, John", "beach"])
-    }
-
-    @Test func `parse metadata line keeps tabs in title and description`() {
-        let meta = PhotoService.parseMetadataLine("Title\twith tab\u{1E}pasted\ttext\u{1E}kw")
-        #expect(meta.title == "Title\twith tab")
-        #expect(meta.description == "pasted\ttext")
-        #expect(meta.keywords == ["kw"])
-    }
-
-    @Test func `metadata script uses control character delimiters`() {
-        let script = PhotoService.metadataScript(id: "A")
-        #expect(script.contains("character id 30"))
-        #expect(script.contains("character id 31"))
-        #expect(!script.contains("tab & d & tab"))
-        #expect(!script.contains(#"delimiters to ",""#))
     }
 
     @Test func `escape for apple script`() {

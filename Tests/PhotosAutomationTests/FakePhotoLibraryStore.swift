@@ -55,6 +55,18 @@ final class FakePhotoLibraryStore: PhotoLibraryStore, @unchecked Sendable {
         return imageDataResult
     }
 
+    func setDescription(id: String, _ description: String) async throws {
+        try record("setDescription(\(id), \(description))")
+    }
+
+    func setKeywords(id: String, _ keywords: [String]) async throws {
+        try record("setKeywords(\(id), \(keywords))")
+    }
+
+    func setRating(id: String, _ stars: Int) async throws {
+        try record("setRating(\(id), \(stars))")
+    }
+
     func createAlbum(title: String) async throws -> PhotoAlbum {
         try record("createAlbum(\(title))")
         return createdAlbum

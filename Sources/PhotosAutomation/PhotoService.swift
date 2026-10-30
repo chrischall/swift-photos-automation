@@ -7,7 +7,7 @@ import UniformTypeIdentifiers
 /// - a ``PhotoLibraryStore`` (PhotoKit) for structured search, metadata,
 ///   export, import, albums, and favorites;
 /// - an ``AppleScriptRunner`` for what PhotoKit cannot do — reading and
-///   writing titles/descriptions/keywords, and free-text search.
+///   writing titles, and free-text search.
 ///
 /// The service is a value type with no mutable state: construct once and
 /// share freely across concurrent callers.
@@ -151,21 +151,18 @@ public struct PhotoService: Sendable {
 
     /// A single asset with full metadata.
     ///
-    /// PhotoKit fields come from the store; `title`, `itemDescription`,
-    /// and `keywords` are hydrated via AppleScript. Hydration is
-    /// best-effort: if Photos.app is unreachable or Automation permission
-    /// is missing, those three fields stay `nil` rather than failing the
-    /// whole lookup.
+    /// Everything but the title comes from the store (PhotoKit), including
+    /// description, keywords, rating and size. PhotoKit has no title API, so
+    /// the title is read over AppleScript, best-effort: if Photos.app is
+    /// unreachable or Automation permission is missing it stays `nil` rather
+    /// than failing the lookup.
     public func asset(id: String) async throws -> PhotoAsset {
         let id = try Self.validateNonEmpty(id, name: "id")
         guard var asset = try await store.asset(id: id) else {
             throw PhotoServiceError.notFound("asset \(id)")
         }
-        if let line = try? await runner.run(source: Self.metadataScript(id: id)) {
-            let meta = Self.parseMetadataLine(line)
-            asset.title = meta.title
-            asset.itemDescription = meta.description
-            asset.keywords = meta.keywords
+        if let title = try? await runner.run(source: Self.titleScript(id: id)) {
+            asset.title = title.isEmpty ? nil : title
         }
         return asset
     }
@@ -199,53 +196,15 @@ public struct PhotoService: Sendable {
             .replacingOccurrences(of: "\"", with: "\\\"")
     }
 
-    /// Field separator in ``metadataScript(id:)`` output: ASCII 30
-    /// (record separator). Control characters cannot come from normal
-    /// user input, unlike the tab or comma a title, description, or
-    /// keyword may legitimately contain.
-    static let metadataFieldSeparator = "\u{1E}"
-
-    /// Keyword separator in ``metadataScript(id:)`` output: ASCII 31
-    /// (unit separator).
-    static let metadataKeywordSeparator = "\u{1F}"
-
-    /// Script returning `title<RS>description<RS>kw1<US>kw2` for one asset,
-    /// where RS/US are ``metadataFieldSeparator`` and
-    /// ``metadataKeywordSeparator``.
-    ///
-    /// `missing value` fields are coerced to `""` inside the script so the
-    /// Swift-side parser can rely on a clean three-field line.
-    static func metadataScript(id: String) -> String {
-        let escaped = escapeForAppleScript(id)
-        return """
+    /// Script returning one asset's title, or `""` when it has none.
+    static func titleScript(id: String) -> String {
+        """
         tell application "Photos"
-            set m to media item id "\(escaped)"
-            set t to name of m
-            if t is missing value then set t to ""
-            set d to description of m
-            if d is missing value then set d to ""
-            set kl to ""
-            set kws to keywords of m
-            if kws is not missing value then
-                set AppleScript's text item delimiters to (character id 31)
-                set kl to kws as text
-                set AppleScript's text item delimiters to ""
-            end if
-            return t & (character id 30) & d & (character id 30) & kl
+            set t to name of media item id "\(escapeForAppleScript(id))"
+            if t is missing value then return ""
+            return t
         end tell
         """
-    }
-
-    /// Parses ``metadataScript(id:)`` output. Empty fields become `nil`;
-    /// a malformed line (wrong field count) yields all-`nil` — the caller
-    /// treats metadata as best-effort.
-    static func parseMetadataLine(_ line: String) -> (title: String?, description: String?, keywords: [String]?) {
-        let fields = line.components(separatedBy: metadataFieldSeparator)
-        guard fields.count == 3 else { return (nil, nil, nil) }
-        let title = fields[0].isEmpty ? nil : fields[0]
-        let description = fields[1].isEmpty ? nil : fields[1]
-        let keywords = fields[2].components(separatedBy: metadataKeywordSeparator).filter { !$0.isEmpty }
-        return (title, description, keywords.isEmpty ? nil : keywords)
     }
 
     // MARK: - Free-text search
@@ -297,7 +256,7 @@ public struct PhotoService: Sendable {
             .filter { !$0.isEmpty }
     }
 
-    // MARK: - Metadata writes (AppleScript)
+    // MARK: - Metadata writes
 
     /// Sets the asset's title ("name" in Photos). Pass `""` to clear.
     ///
@@ -312,41 +271,38 @@ public struct PhotoService: Sendable {
 
     /// Sets the asset's description/caption. Pass `""` to clear.
     ///
-    /// Same transport and error behavior as ``setTitle(id:_:)``.
+    /// Goes through PhotoKit (no Automation permission needed).
+    /// - Throws: ``PhotoServiceError`` for a blank or unknown id, or an
+    ///   asset whose metadata can't be edited.
     public func setDescription(id: String, _ description: String) async throws {
         let id = try Self.validateNonEmpty(id, name: "id")
-        _ = try await runner.run(source: Self.setDescriptionScript(id: id, description: description))
+        try await store.setDescription(id: id, description)
     }
 
     /// Replaces the asset's keyword list. Pass `[]` to clear.
     ///
-    /// Same transport and error behavior as ``setTitle(id:_:)``.
+    /// Same transport and errors as ``setDescription(id:_:)``.
     public func setKeywords(id: String, _ keywords: [String]) async throws {
         let id = try Self.validateNonEmpty(id, name: "id")
-        _ = try await runner.run(source: Self.setKeywordsScript(id: id, keywords: keywords))
+        try await store.setKeywords(id: id, keywords)
+    }
+
+    /// Sets the asset's star rating, 1–5. Pass `0` to clear it.
+    ///
+    /// Same transport and errors as ``setDescription(id:_:)``, plus
+    /// ``PhotoServiceError/invalidInput(_:)`` for a rating outside 0–5.
+    public func setRating(id: String, _ stars: Int) async throws {
+        let id = try Self.validateNonEmpty(id, name: "id")
+        guard (0 ... 5).contains(stars) else {
+            throw PhotoServiceError.invalidInput("rating must be 0–5 (0 clears it)")
+        }
+        try await store.setRating(id: id, stars)
     }
 
     static func setTitleScript(id: String, title: String) -> String {
         """
         tell application "Photos"
             set name of media item id "\(escapeForAppleScript(id))" to "\(escapeForAppleScript(title))"
-        end tell
-        """
-    }
-
-    static func setDescriptionScript(id: String, description: String) -> String {
-        """
-        tell application "Photos"
-            set description of media item id "\(escapeForAppleScript(id))" to "\(escapeForAppleScript(description))"
-        end tell
-        """
-    }
-
-    static func setKeywordsScript(id: String, keywords: [String]) -> String {
-        let list = keywords.map { "\"\(escapeForAppleScript($0))\"" }.joined(separator: ", ")
-        return """
-        tell application "Photos"
-            set keywords of media item id "\(escapeForAppleScript(id))" to {\(list)}
         end tell
         """
     }

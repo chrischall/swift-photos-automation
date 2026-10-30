@@ -163,12 +163,8 @@ struct PhotoServiceIntegrationTests {
         #expect(afterRemove.isEmpty)
     }
 
-    /// AppleScript metadata round-trip on a freshly imported asset — the
-    /// live proof that a PhotoKit `localIdentifier` also works as an
-    /// AppleScript `media item id` (title/keywords written via AppleScript
-    /// are read back on the same id). Requires Automation → Photos.
-    @Test(Self.enabledTrait, Self.appleScriptTrait)
-    func `metadata round-trip via AppleScript (title, keywords)`() async throws {
+    @Test(Self.enabledTrait)
+    func `metadata round-trip via PhotoKit (description, keywords, rating)`() async throws {
         let service = Self.makeService()
         let png = try Self.writeTestPNG()
         defer { try? FileManager.default.removeItem(at: png) }
@@ -176,17 +172,50 @@ struct PhotoServiceIntegrationTests {
         try #require(imported.count == 1)
         let assetId = imported[0].id
 
-        // Title round-trip — proves AppleScript reaches the same asset the
-        // PhotoKit id names.
+        let tag = "photosautomation-test-\(UUID().uuidString.prefix(8))"
+        try await service.setDescription(id: assetId, "Caption \(tag)")
+        try await service.setKeywords(id: assetId, [tag, "photosautomation-test"])
+        try await service.setRating(id: assetId, 4)
+
+        let read = try await service.asset(id: assetId)
+        #expect(read.itemDescription == "Caption \(tag)")
+        #expect(Set(read.keywords ?? []) == [tag, "photosautomation-test"])
+        #expect(read.rating == 4)
+        #expect((read.fileSize ?? 0) > 0)
+
+        // List/search results carry the same metadata, not just asset(id:).
+        let listed = try await service.search(criteria: PhotoSearchCriteria(limit: 50))
+        let fromList = try #require(listed.first { $0.id == assetId })
+        #expect(fromList.itemDescription == "Caption \(tag)")
+        #expect(fromList.rating == 4)
+
+        // Keyword edits replace the list; empty/0 clear.
+        try await service.setKeywords(id: assetId, ["photosautomation-test"])
+        #expect(try await service.asset(id: assetId).keywords == ["photosautomation-test"])
+        try await service.setDescription(id: assetId, "")
+        try await service.setRating(id: assetId, 0)
+        let cleared = try await service.asset(id: assetId)
+        #expect(cleared.itemDescription == nil)
+        #expect(cleared.rating == nil)
+    }
+
+    /// AppleScript title round-trip on a freshly imported asset — the live
+    /// proof that a PhotoKit `localIdentifier` also works as an AppleScript
+    /// `media item id` (a title written via AppleScript is read back on the
+    /// same id). Requires Automation → Photos.
+    @Test(Self.enabledTrait, Self.appleScriptTrait)
+    func `title round-trip via AppleScript`() async throws {
+        let service = Self.makeService()
+        let png = try Self.writeTestPNG()
+        defer { try? FileManager.default.removeItem(at: png) }
+        let imported = try await service.importFiles(urls: [png])
+        try #require(imported.count == 1)
+        let assetId = imported[0].id
+
+        // Proves AppleScript reaches the same asset the PhotoKit id names.
         let title = "PhotosAutomation test \(UUID().uuidString.prefix(8))"
         try await service.setTitle(id: assetId, title)
-        let hydrated = try await service.asset(id: assetId)
-        #expect(hydrated.title == title)
-
-        // Keywords round-trip.
-        try await service.setKeywords(id: assetId, ["photosautomation-test"])
-        let keyworded = try await service.asset(id: assetId)
-        #expect(keyworded.keywords == ["photosautomation-test"])
+        #expect(try await service.asset(id: assetId).title == title)
     }
 
     @Test(Self.enabledTrait, Self.appleScriptTrait)
