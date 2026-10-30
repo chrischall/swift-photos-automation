@@ -247,3 +247,21 @@ struct WriteAllOrNothingTests {
         #expect(left == ["preexisting"])
     }
 }
+
+struct ResourceFilenameTests {
+    /// `PHAssetResource.filename` (macOS 27) is optional where the deprecated
+    /// `originalFilename` was not; a nameless resource still needs a file name
+    /// with the right extension for export and album-copy staging.
+    @Test(arguments: [
+        ("public.heic", "resource.heic"),
+        ("public.jpeg", "resource.jpeg"),
+        ("com.apple.quicktime-movie", "resource.mov"),
+    ])
+    func `a nameless resource is named from its type`(uti: String, expected: String) {
+        #expect(PhotoKitStore.fallbackFilename(uniformTypeIdentifier: uti) == expected)
+    }
+
+    @Test func `an unknown type still gets a usable name`() {
+        #expect(PhotoKitStore.fallbackFilename(uniformTypeIdentifier: "com.example.unknown-nope") == "resource")
+    }
+}
