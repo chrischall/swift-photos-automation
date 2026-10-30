@@ -36,6 +36,12 @@ public protocol PhotoLibraryStore: Sendable {
     func remove(ids: [String], fromAlbum albumId: String) async throws
     /// Sets or clears the favorite flag.
     func setFavorite(id: String, _ isFavorite: Bool) async throws
+    /// Sets the asset's description (caption); `""` clears it.
+    func setDescription(id: String, _ description: String) async throws
+    /// Replaces the asset's keywords; `[]` clears them.
+    func setKeywords(id: String, _ keywords: [String]) async throws
+    /// Sets the asset's star rating, 1–5; `0` clears it.
+    func setRating(id: String, _ stars: Int) async throws
     /// Imports the files at `urls` into the library and optionally into
     /// the album with `albumId`. Returns the created assets.
     func importFiles(urls: [URL], toAlbum albumId: String?) async throws -> [PhotoAsset]
@@ -52,6 +58,18 @@ public protocol PhotoLibraryStore: Sendable {
 }
 
 public extension PhotoLibraryStore {
+    func setDescription(id _: String, _: String) async throws {
+        throw PhotoServiceError.operationFailed("this Photos store cannot write descriptions")
+    }
+
+    func setKeywords(id _: String, _: [String]) async throws {
+        throw PhotoServiceError.operationFailed("this Photos store cannot write keywords")
+    }
+
+    func setRating(id _: String, _: Int) async throws {
+        throw PhotoServiceError.operationFailed("this Photos store cannot write ratings")
+    }
+
     func copyAlbum(sourceAlbumId: String, targetAlbumId: String, dryRun: Bool, cleanPhantoms: Bool,
                    progress _: (@Sendable (PhotoCopyProgress) -> Void)?) async throws -> PhotoCopyResult
     {

@@ -9,12 +9,12 @@ Swift library for driving the Apple Photos library on macOS. One
 `PhotoService` facade over two complementary transports:
 
 - **PhotoKit** — structured search (dates, media type, favorites,
-  albums), asset metadata, original export, in-memory JPEG renditions,
-  album management, favorites, and import.
-- **AppleScript** — the operations PhotoKit does not expose: writing
-  titles, descriptions, and keywords, plus free-text search through
-  Photos' own search engine (matches titles, keywords, and detected
-  content).
+  albums), asset metadata including descriptions, keywords, star ratings
+  and file sizes (read and write), original export, in-memory JPEG
+  renditions, album management, favorites, and import.
+- **AppleScript** — the operations PhotoKit does not expose: titles, plus
+  free-text search through Photos' own search engine (matches titles,
+  keywords, and detected content).
 
 Platform: **macOS 27.2+** (built with Swift 6.4). Pure Swift 6 with strict
 concurrency. Zero external dependencies.
@@ -43,7 +43,7 @@ let favorites = try await service.search(
 // Free-text search (titles, keywords, detected content)
 let beach = try await service.searchText("beach sunset", limit: 10)
 
-// Full metadata for one asset (titles/keywords hydrated via AppleScript)
+// Full metadata for one asset (the title is read via AppleScript)
 let asset = try await service.asset(id: beach[0].id)
 
 // In-memory JPEG scaled to 1024px — e.g. for base64 MCP content
@@ -73,13 +73,14 @@ let imported = try await service.importFiles(
 | List assets | `listAssets(albumId:limit:)` | PhotoKit |
 | Structured search | `search(criteria:)` | PhotoKit |
 | Free-text search | `searchText(_:limit:)` | AppleScript + PhotoKit |
-| Asset detail | `asset(id:)` | PhotoKit + AppleScript |
+| Asset detail | `asset(id:)` | PhotoKit + AppleScript (title only) |
 | Export originals | `exportOriginals(ids:to:)` | PhotoKit |
 | JPEG rendition | `imageData(id:maxDimension:)` | PhotoKit |
 | Create album | `createAlbum(title:)` | PhotoKit |
 | Add / remove in album | `add(ids:toAlbum:)` / `remove(ids:fromAlbum:)` | PhotoKit |
 | Favorite | `setFavorite(id:_:)` | PhotoKit |
-| Title / description / keywords | `setTitle` / `setDescription` / `setKeywords` | AppleScript |
+| Title | `setTitle(id:_:)` | AppleScript |
+| Description / keywords / rating | `setDescription` / `setKeywords` / `setRating` | PhotoKit |
 | Import | `importFiles(urls:albumId:)` | PhotoKit |
 
 Asset IDs are PhotoKit `localIdentifier`s, which Photos' AppleScript
@@ -95,10 +96,10 @@ dictionary exposes identically — one ID works across both transports.
   interactive UI, but it too shows a blocking confirmation dialog, so
   it's intentionally left off the `PhotoService` facade and never used
   by the test suite.
-- **Titles/descriptions/keywords are AppleScript-only.** PhotoKit cannot
-  read or write them. They are `nil` in list/search results and hydrated
-  only by `asset(id:)`; hydration is best-effort (stays `nil` if
-  Photos.app is unreachable).
+- **Titles are AppleScript-only.** PhotoKit has no title API, so a title is
+  `nil` in list/search results and read only by `asset(id:)`, best-effort
+  (it stays `nil` if Photos.app is unreachable). Descriptions, keywords,
+  ratings and file sizes come from PhotoKit and are present everywhere.
 - **No path confinement by default.** `exportOriginals(ids:to:)` writes
   into any directory it is given and `importFiles(urls:)` reads any file
   the process can reach — the library does no allow-listing. A consumer
@@ -114,8 +115,8 @@ dictionary exposes identically — one ID works across both transports.
 Two TCC grants, both prompted on first use:
 
 1. **Photos library access** (full access) for the PhotoKit paths.
-2. **Automation → Photos** for the AppleScript paths (metadata writes,
-   free-text search).
+2. **Automation → Photos** for the AppleScript paths (titles, free-text
+   search).
 
 Bare executables need an embedded Info.plist with
 `NSPhotoLibraryUsageDescription` to request Photos access (see
@@ -134,12 +135,13 @@ Two opt-in env vars gate the live suites, so `swift test` alone stays
 deterministic and prompt-free:
 
 - `PHOTOS_AUTOMATION_INTEGRATION=1` runs the PhotoKit-only integration
-  tests (import, albums, favorites, renditions, export) against your
+  tests (import, albums, favorites, renditions, export, and the
+  description/keyword/rating round-trip) against your
   real Photos library. Needs Photos library access, prompted on first
   run.
 - `PHOTOS_AUTOMATION_APPLESCRIPT=1` (on top of the above) additionally
-  runs the AppleScript-to-Photos tests — the metadata round-trip
-  (title/keywords) and free-text search. These need **Automation →
+  runs the AppleScript-to-Photos tests — the title round-trip and
+  free-text search. These need **Automation →
   Photos** permission for the test binary, and are unreliable from a
   `swift test` bundle: `NSAppleScript` targeting another app can hang
   waiting on the permission prompt, or flake on reentrancy inside the

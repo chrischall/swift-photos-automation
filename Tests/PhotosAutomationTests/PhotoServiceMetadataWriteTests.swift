@@ -20,24 +20,6 @@ struct PhotoServiceMetadataWriteTests {
         }
     }
 
-    @Test func `set description generates script`() async throws {
-        let runner = FakeAppleScriptRunner()
-        try await make(runner).setDescription(id: "A", "Golden hour")
-        #expect(runner.calls[0].contains(#"set description of media item id "A" to "Golden hour""#))
-    }
-
-    @Test func `set keywords generates list literal`() async throws {
-        let runner = FakeAppleScriptRunner()
-        try await make(runner).setKeywords(id: "A", ["beach", "sun\"set"])
-        #expect(runner.calls[0].contains(#"set keywords of media item id "A" to {"beach", "sun\"set"}"#))
-    }
-
-    @Test func `set keywords empty clears with empty list`() async throws {
-        let runner = FakeAppleScriptRunner()
-        try await make(runner).setKeywords(id: "A", [])
-        #expect(runner.calls[0].contains(#"set keywords of media item id "A" to {}"#))
-    }
-
     @Test func `apple script error propagates`() async {
         let runner = FakeAppleScriptRunner()
         runner.queueError("no permission")

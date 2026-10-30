@@ -143,12 +143,15 @@ public struct PhotoKitStore: PhotoLibraryStore {
 
     // MARK: - Mapping
 
-    /// Maps a `PHAsset` to the library's value type. Title, description,
-    /// and keywords stay `nil` — PhotoKit does not expose them; the
-    /// service hydrates them via AppleScript when asked for one asset.
+    /// Maps a `PHAsset` to the library's value type, description, keywords,
+    /// rating and size included (macOS 27 PhotoKit; the fetch options
+    /// prefetch the extended metadata, so a listing reads it in bulk). The
+    /// title stays `nil`: PhotoKit has no API for it, so the service reads
+    /// it over AppleScript when asked for one asset.
     static func photoAsset(from asset: PHAsset) -> PhotoAsset {
         let resources = PHAssetResource.assetResources(for: asset)
         let primary = resources.first { $0.type == .photo || $0.type == .video } ?? resources.first
+        let metadata = asset.extendedMetadata
         return PhotoAsset(
             id: asset.localIdentifier,
             originalFilename: primary.map(Self.filename(of:)),
@@ -160,12 +163,45 @@ public struct PhotoKitStore: PhotoLibraryStore {
             latitude: asset.location?.coordinate.latitude,
             longitude: asset.location?.coordinate.longitude,
             sourceType: asset.sourceType.contains(.typeCloudShared) ? .cloudShared : .userLibrary,
+            itemDescription: metadata.caption.flatMap { $0.isEmpty ? nil : $0 },
+            keywords: metadata.keywords.isEmpty ? nil : metadata.keywords,
+            rating: Self.stars(from: asset.rating),
+            fileSize: primary?.dataSize,
         )
+    }
+
+    /// The star count for a PhotoKit rating; `nil` when unrated.
+    static func stars(from rating: PHAsset.Rating) -> Int? {
+        switch rating {
+        case .one: 1
+        case .two: 2
+        case .three: 3
+        case .four: 4
+        case .five: 5
+        default: nil
+        }
+    }
+
+    /// The PhotoKit rating for a star count, `0` meaning unrated; `nil`
+    /// outside 0–5.
+    static func rating(stars: Int) -> PHAsset.Rating? {
+        switch stars {
+        case 0: .unset
+        case 1: .one
+        case 2: .two
+        case 3: .three
+        case 4: .four
+        case 5: .five
+        default: nil
+        }
     }
 
     private static func assetFetchOptions() -> PHFetchOptions {
         let options = PHFetchOptions()
         options.includeAssetSourceTypes = [.typeUserLibrary, .typeCloudShared]
+        // Captions and keywords for every fetched asset in one go, rather
+        // than a fault per asset when photoAsset(from:) reads them.
+        options.prefetchAssetExtendedMetadata = true
         return options
     }
 
@@ -403,6 +439,72 @@ public struct PhotoKitStore: PhotoLibraryStore {
             else { return }
             request.removeAssets(PHAsset.fetchAssets(withLocalIdentifiers: ids, options: Self.assetFetchOptions()))
         }
+    }
+
+    public func setDescription(id: String, _ description: String) async throws {
+        try await ensureAuthorized()
+        _ = try editableAsset(id)
+        try await performChanges {
+            guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: Self.assetFetchOptions()).firstObject
+            else { return }
+            PHAssetChangeRequest(for: asset).caption = description.isEmpty ? nil : description
+        }
+    }
+
+    public func setKeywords(id: String, _ keywords: [String]) async throws {
+        try await ensureAuthorized()
+        let edits = try Self.keywordEdits(current: editableAsset(id).extendedMetadata.keywords, desired: keywords)
+        guard !edits.remove.isEmpty || !edits.add.isEmpty else { return }
+        try await performChanges {
+            guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: Self.assetFetchOptions()).firstObject
+            else { return }
+            let request = PHAssetChangeRequest(for: asset)
+            for keyword in edits.remove {
+                request.removeKeyword(keyword)
+            }
+            for keyword in edits.add {
+                request.addKeyword(keyword)
+            }
+        }
+    }
+
+    public func setRating(id: String, _ stars: Int) async throws {
+        guard let rating = Self.rating(stars: stars) else {
+            throw PhotoServiceError.invalidInput("rating must be 0–5 (0 clears it)")
+        }
+        try await ensureAuthorized()
+        _ = try editableAsset(id)
+        try await performChanges {
+            guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: Self.assetFetchOptions()).firstObject
+            else { return }
+            PHAssetChangeRequest(for: asset).rating = rating
+        }
+    }
+
+    /// The removals and additions that turn `current` keywords into
+    /// `desired` ones. PhotoKit edits keywords one at a time rather than by
+    /// assignment. Matching is exact; each list is de-duplicated in
+    /// first-seen order.
+    static func keywordEdits(current: [String], desired: [String]) -> (remove: [String], add: [String]) {
+        let currentSet = Set(current)
+        let desiredSet = Set(desired)
+        return (
+            remove: PhotoService.uniqued(current.filter { !desiredSet.contains($0) }),
+            add: PhotoService.uniqued(desired.filter { !currentSet.contains($0) }),
+        )
+    }
+
+    /// The asset with `id`, refusing an unknown id or an asset whose
+    /// properties can't be edited (e.g. one in a shared album).
+    private func editableAsset(_ id: String) throws -> PHAsset {
+        guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: Self.assetFetchOptions()).firstObject
+        else {
+            throw PhotoServiceError.notFound("asset(s) \(id)")
+        }
+        guard asset.canPerform(.properties) else {
+            throw PhotoServiceError.operationFailed("asset \(id) does not allow metadata edits")
+        }
+        return asset
     }
 
     public func setFavorite(id: String, _ isFavorite: Bool) async throws {
