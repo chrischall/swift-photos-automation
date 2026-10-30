@@ -372,9 +372,9 @@ public struct PhotoKitStore: PhotoLibraryStore {
         try ensureAlbumEditable(albumId, operation: .addContent)
         try await performChanges {
             guard let collection = PHAssetCollection.fetchAssetCollections(
-                withLocalIdentifiers: [albumId], options: nil
-            ).firstObject,
-                let request = PHAssetCollectionChangeRequest(for: collection)
+                      withLocalIdentifiers: [albumId], options: nil
+                  ).firstObject,
+                  let request = PHAssetCollectionChangeRequest(for: collection)
             else { return }
             request.addAssets(PHAsset.fetchAssets(withLocalIdentifiers: ids, options: Self.assetFetchOptions()))
         }
@@ -386,9 +386,9 @@ public struct PhotoKitStore: PhotoLibraryStore {
         try ensureAlbumEditable(albumId, operation: .removeContent)
         try await performChanges {
             guard let collection = PHAssetCollection.fetchAssetCollections(
-                withLocalIdentifiers: [albumId], options: nil
-            ).firstObject,
-                let request = PHAssetCollectionChangeRequest(for: collection)
+                      withLocalIdentifiers: [albumId], options: nil
+                  ).firstObject,
+                  let request = PHAssetCollectionChangeRequest(for: collection)
             else { return }
             request.removeAssets(PHAsset.fetchAssets(withLocalIdentifiers: ids, options: Self.assetFetchOptions()))
         }
@@ -475,10 +475,10 @@ public struct PhotoKitStore: PhotoLibraryStore {
         }
         try ensureAlbumEditable(targetAlbumId, operation: .addContent)
         guard let targetCollection = PHAssetCollection.fetchAssetCollections(
-            withLocalIdentifiers: [targetAlbumId],
-            options: nil
-        ).firstObject,
-            targetCollection.assetCollectionType == .album, targetCollection.assetCollectionSubtype == .albumRegular
+                  withLocalIdentifiers: [targetAlbumId],
+                  options: nil
+              ).firstObject,
+              targetCollection.assetCollectionType == .album, targetCollection.assetCollectionSubtype == .albumRegular
         else {
             throw PhotoServiceError.invalidInput("targetAlbumId must identify a regular local album")
         }

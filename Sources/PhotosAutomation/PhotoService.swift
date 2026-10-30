@@ -12,15 +12,15 @@ import UniformTypeIdentifiers
 /// The service is a value type with no mutable state: construct once and
 /// share freely across concurrent callers.
 public struct PhotoService: Sendable {
-    private let store: PhotoLibraryStore
-    private let runner: AppleScriptRunner
+    private let store: any PhotoLibraryStore
+    private let runner: any AppleScriptRunner
 
     /// Creates a service.
     ///
     /// - Parameters:
     ///   - store: PhotoKit access. Defaults to ``PhotoKitStore``.
     ///   - runner: AppleScript access. Defaults to ``NSAppleScriptRunner``.
-    public init(store: PhotoLibraryStore = PhotoKitStore(), runner: AppleScriptRunner = NSAppleScriptRunner()) {
+    public init(store: any PhotoLibraryStore = PhotoKitStore(), runner: any AppleScriptRunner = NSAppleScriptRunner()) {
         self.store = store
         self.runner = runner
     }
