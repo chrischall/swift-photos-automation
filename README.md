@@ -16,7 +16,7 @@ Swift library for driving the Apple Photos library on macOS. One
   Photos' own search engine (matches titles, keywords, and detected
   content).
 
-Platform: **macOS 26+** (built with Swift 6.4). Pure Swift 6 with strict
+Platform: **macOS 27.2+** (built with Swift 6.4). Pure Swift 6 with strict
 concurrency. Zero external dependencies.
 
 ## Install

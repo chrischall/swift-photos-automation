@@ -9,7 +9,7 @@ Swift 6 library exposing the Apple Photos library on macOS through one `PhotoSer
 - **PhotoKit** (`PhotoKitStore: PhotoLibraryStore`) — structured search, metadata, export, in-memory JPEG renditions, albums, favorites, import.
 - **AppleScript** (`NSAppleScriptRunner: AppleScriptRunner`) — only what PhotoKit cannot do: writing titles/descriptions/keywords and free-text search (`search for`).
 
-Target: macOS 26+, swift-tools-version 6.4, Swift 6 language mode. Zero external dependencies. Strict concurrency is on (all public types are `Sendable`; no `@unchecked Sendable` in library code — use `Synchronization.Mutex`).
+Target: macOS 27.2+, swift-tools-version 6.4, Swift 6 language mode. Zero external dependencies. Strict concurrency is on (all public types are `Sendable`; no `@unchecked Sendable` in library code — use `Synchronization.Mutex`).
 
 ## Commands
 

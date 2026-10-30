@@ -151,7 +151,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
         let primary = resources.first { $0.type == .photo || $0.type == .video } ?? resources.first
         return PhotoAsset(
             id: asset.localIdentifier,
-            originalFilename: primary?.originalFilename,
+            originalFilename: primary.map(Self.filename(of:)),
             creationDate: asset.creationDate,
             mediaType: Self.mediaType(from: asset.mediaType),
             isFavorite: asset.isFavorite,
@@ -218,7 +218,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
         // A write can still fail mid-way (e.g. an iCloud download); then the
         // files already written by this call are removed rather than orphaned.
         return try await Self.writeAllOrNothing(resources) { item in
-            let destination = Self.availableURL(in: directory, filename: item.resource.originalFilename)
+            let destination = Self.availableURL(in: directory, filename: Self.filename(of: item.resource))
             let options = PHAssetResourceRequestOptions()
             options.isNetworkAccessAllowed = true
             do {
@@ -291,6 +291,19 @@ public struct PhotoKitStore: PhotoLibraryStore {
                 c.resume(returning: jpeg)
             }
         }
+    }
+
+    /// The resource's file name. `PHAssetResource.filename` (macOS 27)
+    /// is optional where the deprecated `originalFilename` was not, so a
+    /// nameless resource is named from its type instead.
+    static func filename(of resource: PHAssetResource) -> String {
+        resource.filename ?? fallbackFilename(uniformTypeIdentifier: resource.uniformTypeIdentifier)
+    }
+
+    /// `resource.<ext>` for the type's preferred extension, or `resource`
+    /// when the type is unknown.
+    static func fallbackFilename(uniformTypeIdentifier: String) -> String {
+        UTType(uniformTypeIdentifier)?.preferredFilenameExtension.map { "resource.\($0)" } ?? "resource"
     }
 
     /// Returns a URL in `directory` for `filename`, appending ` (n)` before
@@ -653,7 +666,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
                     }
                     var staged: [StagedResource] = []
                     for resource in selected {
-                        let url = tempRoot.appending(path: UUID().uuidString + "-" + resource.originalFilename)
+                        let url = tempRoot.appending(path: UUID().uuidString + "-" + Self.filename(of: resource))
                         let requestOptions = PHAssetResourceRequestOptions()
                         requestOptions.isNetworkAccessAllowed = true
                         try await PHAssetResourceManager.default().writeData(
@@ -661,7 +674,9 @@ public struct PhotoKitStore: PhotoLibraryStore {
                             toFile: url,
                             options: requestOptions,
                         )
-                        staged.append(StagedResource(type: resource.type, filename: resource.originalFilename, url: url))
+                        staged.append(
+                            StagedResource(type: resource.type, filename: Self.filename(of: resource), url: url),
+                        )
                     }
                     pendingCopies.append(StagedCopy(id: id, creationDate: value.creationDate,
                                                     latitude: value.latitude, longitude: value.longitude,
