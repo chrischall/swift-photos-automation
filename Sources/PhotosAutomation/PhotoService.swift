@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation
 import UniformTypeIdentifiers
 
 /// High-level facade over the Photos library.
@@ -458,9 +458,10 @@ public struct PhotoService: Sendable {
         var tail: [String] = []
         var resolved: String
         while true {
-            if let real = realpath(existing, nil) {
-                resolved = String(cString: real)
-                free(real)
+            // realpath(3) mallocs the result; copy it out, then free it.
+            if let real = unsafe realpath(existing, nil) {
+                resolved = unsafe String(cString: real)
+                unsafe free(real)
                 break
             }
             if (try? FileManager.default.destinationOfSymbolicLink(atPath: existing)) != nil {
@@ -505,7 +506,7 @@ public struct PhotoService: Sendable {
     /// whose extension maps to an image or video type.
     static func validateImportable(_ url: URL) throws(PhotoServiceError) {
         var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
+        guard unsafe FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
             throw PhotoServiceError.invalidInput("file does not exist: \(url.path)")
         }
         guard !isDirectory.boolValue else {

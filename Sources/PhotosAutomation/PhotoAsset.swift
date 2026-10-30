@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation
 
 /// The kind of media a ``PhotoAsset`` holds.
 ///

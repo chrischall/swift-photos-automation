@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation
 
 /// Abstracts PhotoKit so ``PhotoService`` can be unit-tested without a
 /// real Photos library or TCC grant.

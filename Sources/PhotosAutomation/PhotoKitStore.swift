@@ -1,6 +1,6 @@
+public import Foundation
 import AppKit
 import CoreLocation
-import Foundation
 import Photos
 import UniformTypeIdentifiers
 
@@ -317,7 +317,8 @@ public struct PhotoKitStore: PhotoLibraryStore {
                 }
                 // Encode straight from the CGImage — no TIFF round-trip, so
                 // the bitmap is not buffered a second time.
-                guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
+                // `forProposedRect` is an UnsafeMutablePointer<NSRect>; nil is safe.
+                guard let cgImage = unsafe image.cgImage(forProposedRect: nil, context: nil, hints: nil),
                       let jpeg = NSBitmapImageRep(cgImage: cgImage)
                           .representation(using: .jpeg, properties: [.compressionFactor: 0.85])
                 else {

@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation
 
 /// Domain errors thrown by ``PhotoService`` and ``PhotoLibraryStore``
 /// implementations.
