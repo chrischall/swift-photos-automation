@@ -199,6 +199,62 @@ struct PhotoServiceIntegrationTests {
         #expect(cleared.rating == nil)
     }
 
+    /// macOS 27 additions on a freshly imported still: it reads as a plain
+    /// compressed original, refuses a Live Photo playback change, and a new
+    /// top-level album's path is its bare title (the root folder adds
+    /// nothing).
+    @Test(Self.enabledTrait)
+    func `macOS 27 fields on an imported still and a top-level album`() async throws {
+        let service = Self.makeService()
+        let png = try Self.writeTestPNG()
+        defer { try? FileManager.default.removeItem(at: png) }
+        let imported = try await service.importFiles(urls: [png])
+        try #require(imported.count == 1)
+        let asset = try await service.asset(id: imported[0].id)
+        #expect(asset.isLivePhoto == false)
+        #expect(asset.originalResource == .compressed)
+        await #expect(throws: PhotoServiceError.invalidInput("asset \(asset.id) is not a Live Photo")) {
+            try await service.setLivePhotoPlayback(id: asset.id, enabled: false)
+        }
+
+        let title = "\(Self.albumPrefix)-path-\(UUID().uuidString.prefix(8))"
+        let album = try await service.createAlbum(title: title)
+        let listed = try #require(try await service.listAlbums().first { $0.id == album.id })
+        #expect(listed.path == title)
+    }
+
+    /// Live Photo playback off then back on. Needs an existing Live Photo
+    /// (importing one takes a paired still + video): set
+    /// `PHOTOS_LIVE_PHOTO_ID` to its id, or the test returns early.
+    @Test(Self.enabledTrait)
+    func `live photo playback toggles off and back on`() async throws {
+        guard let id = ProcessInfo.processInfo.environment["PHOTOS_LIVE_PHOTO_ID"], !id.isEmpty else {
+            return
+        }
+        let service = Self.makeService()
+        #expect(try await service.asset(id: id).isLivePhoto)
+        try await service.setLivePhotoPlayback(id: id, enabled: false)
+        try await service.setLivePhotoPlayback(id: id, enabled: true)
+        // Turning playback off keeps the paired video: still a Live Photo.
+        #expect(try await service.asset(id: id).isLivePhoto)
+    }
+
+    /// A dry-run copy reported through a `Subprogress` finishes the
+    /// parent's share. Needs `PHOTOS_SHARED_SOURCE_ALBUM_ID`, like the
+    /// copy test above.
+    @Test(Self.enabledTrait)
+    func `dry-run copy completes its subprogress`() async throws {
+        guard let sourceId = ProcessInfo.processInfo.environment["PHOTOS_SHARED_SOURCE_ALBUM_ID"], !sourceId.isEmpty else {
+            return
+        }
+        let service = Self.makeService()
+        let target = try await service.createAlbum(title: "\(Self.albumPrefix)-progress-\(UUID().uuidString.prefix(8))")
+        let parent = ProgressManager(totalCount: 1)
+        _ = try await service.copyAlbum(sourceAlbumId: sourceId, targetAlbumId: target.id, dryRun: true,
+                                        subprogress: parent.subprogress(assigningCount: 1))
+        #expect(parent.isFinished)
+    }
+
     /// AppleScript title round-trip on a freshly imported asset — the live
     /// proof that a PhotoKit `localIdentifier` also works as an AppleScript
     /// `media item id` (a title written via AppleScript is read back on the

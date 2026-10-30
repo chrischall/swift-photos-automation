@@ -17,6 +17,15 @@ public enum PhotoAssetSourceType: String, Equatable, Hashable, Sendable, CaseIte
     case cloudShared
 }
 
+/// Which original resource an asset renders from. Only RAW+JPEG assets
+/// can use ``raw``; every other asset is ``compressed``.
+public enum PhotoOriginalResource: String, Equatable, Hashable, Sendable, CaseIterable {
+    /// The compressed original (JPEG, HEIC, …).
+    case compressed
+    /// The RAW original of a RAW+JPEG pair.
+    case raw
+}
+
 /// A single item in the Photos library — photo, video, or audio clip.
 ///
 /// `id` is PhotoKit's `localIdentifier` (e.g. `"4AF382AC-…/L0/001"`),
@@ -59,6 +68,11 @@ public struct PhotoAsset: Equatable, Hashable, Identifiable, Sendable {
     /// Size in bytes of the primary resource (the original photo or video),
     /// when PhotoKit knows it.
     public let fileSize: Int?
+    /// Whether the asset is a Live Photo (a still with a paired video).
+    public let isLivePhoto: Bool
+    /// The original resource the asset renders from — ``PhotoOriginalResource/raw``
+    /// only for a RAW+JPEG asset set to use its RAW.
+    public let originalResource: PhotoOriginalResource
 
     /// Creates an asset. All metadata parameters default to empty/unknown
     /// so tests and fakes can construct minimal instances.
@@ -78,6 +92,8 @@ public struct PhotoAsset: Equatable, Hashable, Identifiable, Sendable {
         keywords: [String]? = nil,
         rating: Int? = nil,
         fileSize: Int? = nil,
+        isLivePhoto: Bool = false,
+        originalResource: PhotoOriginalResource = .compressed,
     ) {
         self.id = id
         self.originalFilename = originalFilename
@@ -94,5 +110,7 @@ public struct PhotoAsset: Equatable, Hashable, Identifiable, Sendable {
         self.keywords = keywords
         self.rating = rating
         self.fileSize = fileSize
+        self.isLivePhoto = isLivePhoto
+        self.originalResource = originalResource
     }
 }

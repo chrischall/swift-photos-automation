@@ -64,6 +64,46 @@ public struct PhotoService: Sendable {
         )
     }
 
+    /// ``copyAlbum(sourceAlbumId:targetAlbumId:dryRun:cleanPhantoms:progress:)``
+    /// reporting into a Foundation `Subprogress` instead of a callback, so
+    /// the copy can be one part of a caller's larger `ProgressManager` tree.
+    ///
+    /// The subprogress starts indeterminate; its total becomes the number
+    /// of source assets at the first report, and each processed asset
+    /// (copied, skipped as a duplicate, or failed) completes one unit.
+    /// When the copy throws, the error is the signal: Foundation still
+    /// counts the subprogress's share of the parent as done once this call
+    /// releases its `ProgressManager`.
+    public func copyAlbum(
+        sourceAlbumId: String,
+        targetAlbumId: String,
+        dryRun: Bool = false,
+        cleanPhantoms: Bool = false,
+        subprogress: consuming Subprogress,
+    ) async throws -> PhotoCopyResult {
+        let manager = subprogress.start(totalCount: nil)
+        return try await copyAlbum(
+            sourceAlbumId: sourceAlbumId, targetAlbumId: targetAlbumId,
+            dryRun: dryRun, cleanPhantoms: cleanPhantoms,
+        ) { event in
+            Self.report(event, to: manager)
+        }
+    }
+
+    /// Mirrors one callback event onto a `ProgressManager`. An empty copy
+    /// (total 0) is reported as one unit of one, so it still finishes.
+    static func report(_ event: PhotoCopyProgress, to manager: ProgressManager) {
+        manager.setCounts { completed, total in
+            if event.total == 0 {
+                total = 1
+                completed = 1
+            } else {
+                total = event.total
+                completed = min(event.done, event.total)
+            }
+        }
+    }
+
     struct AlbumCopyPlan: Equatable {
         var referenceIDs: [String] = []
         var copyIDs: [String] = []
@@ -297,6 +337,16 @@ public struct PhotoService: Sendable {
             throw PhotoServiceError.invalidInput("rating must be 0–5 (0 clears it)")
         }
         try await store.setRating(id: id, stars)
+    }
+
+    /// Turns a Live Photo's motion on or off. Off leaves it playing as a
+    /// still image; the paired video is kept, so `true` restores it.
+    ///
+    /// Same transport and errors as ``setDescription(id:_:)``; an asset
+    /// that is not a Live Photo is refused.
+    public func setLivePhotoPlayback(id: String, enabled: Bool) async throws {
+        let id = try Self.validateNonEmpty(id, name: "id")
+        try await store.setLivePhotoPlayback(id: id, enabled: enabled)
     }
 
     static func setTitleScript(id: String, title: String) -> String {

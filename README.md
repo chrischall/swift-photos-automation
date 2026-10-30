@@ -81,7 +81,9 @@ let imported = try await service.importFiles(
 | Favorite | `setFavorite(id:_:)` | PhotoKit |
 | Title | `setTitle(id:_:)` | AppleScript |
 | Description / keywords / rating | `setDescription` / `setKeywords` / `setRating` | PhotoKit |
+| Live Photo playback on/off | `setLivePhotoPlayback(id:enabled:)` | PhotoKit |
 | Import | `importFiles(urls:albumId:)` | PhotoKit |
+| Copy album (callback or `Subprogress` progress) | `copyAlbum(sourceAlbumId:targetAlbumId:…)` | PhotoKit |
 
 Asset IDs are PhotoKit `localIdentifier`s, which Photos' AppleScript
 dictionary exposes identically — one ID works across both transports.
@@ -99,7 +101,12 @@ dictionary exposes identically — one ID works across both transports.
 - **Titles are AppleScript-only.** PhotoKit has no title API, so a title is
   `nil` in list/search results and read only by `asset(id:)`, best-effort
   (it stays `nil` if Photos.app is unreachable). Descriptions, keywords,
-  ratings and file sizes come from PhotoKit and are present everywhere.
+  ratings, file sizes, `isLivePhoto` and `originalResource` (RAW vs
+  compressed, for RAW+JPEG assets) come from PhotoKit and are present
+  everywhere.
+- **The original resource is read-only.** PhotoKit can switch a RAW+JPEG
+  asset's original only by reverting it, which discards the user's edits,
+  so the library reports the choice but never changes it.
 - **No path confinement by default.** `exportOriginals(ids:to:)` writes
   into any directory it is given and `importFiles(urls:)` reads any file
   the process can reach — the library does no allow-listing. A consumer
@@ -107,8 +114,8 @@ dictionary exposes identically — one ID works across both transports.
   paths) must confine them: enforce its own policy, or pass
   `allowedRoot:`, which refuses any path that resolves (symlinks and `..`
   included) outside that directory before the library is touched.
-- **Smart albums, Live Photo editing, and iCloud shared albums** are out
-  of scope.
+- **Smart albums and Live Photo editing** (beyond turning playback on or
+  off) are out of scope.
 
 ## Permissions
 
@@ -138,7 +145,9 @@ deterministic and prompt-free:
   tests (import, albums, favorites, renditions, export, and the
   description/keyword/rating round-trip) against your
   real Photos library. Needs Photos library access, prompted on first
-  run.
+  run. Two tests also need an id: `PHOTOS_LIVE_PHOTO_ID` (an existing
+  Live Photo, for the playback toggle) and `PHOTOS_SHARED_SOURCE_ALBUM_ID`
+  (a shared album, for the copy tests); without them they return early.
 - `PHOTOS_AUTOMATION_APPLESCRIPT=1` (on top of the above) additionally
   runs the AppleScript-to-Photos tests — the title round-trip and
   free-text search. These need **Automation →

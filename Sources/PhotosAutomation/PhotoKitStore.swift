@@ -56,29 +56,25 @@ public struct PhotoKitStore: PhotoLibraryStore {
             with: .album, subtype: .albumCloudShared, options: nil,
         )
         var paths: [String: String] = [:]
-        func walk(_ list: PHCollectionList, prefix: String) {
-            let children = PHCollectionList.fetchCollections(in: list, options: nil)
-            for index in 0 ..< children.count {
-                let child = children.object(at: index)
-                let path = prefix.isEmpty ? (child.localizedTitle ?? "") : "\(prefix)/\(child.localizedTitle ?? "")"
-                if let album = child as? PHAssetCollection {
-                    paths[album.localIdentifier] = path
-                }
-                if let folder = child as? PHCollectionList {
-                    walk(folder, prefix: path)
+        func visit(_ collection: PHCollection, parent: String) {
+            if let album = collection as? PHAssetCollection {
+                paths[album.localIdentifier] = Self.folderPath(
+                    parent: parent,
+                    title: album.localizedTitle,
+                    isRoot: false,
+                )
+            } else if let folder = collection as? PHCollectionList {
+                let path = Self.folderPath(parent: parent, title: folder.localizedTitle,
+                                           isRoot: folder.collectionListSubtype == .rootFolder)
+                let children = PHCollectionList.fetchCollections(in: folder, options: nil)
+                for index in 0 ..< children.count {
+                    visit(children.object(at: index), parent: path)
                 }
             }
         }
         let roots = PHCollectionList.fetchTopLevelUserCollections(with: nil)
         for index in 0 ..< roots.count {
-            if let folder = roots.object(at: index) as? PHCollectionList {
-                walk(
-                    folder,
-                    prefix: folder.localizedTitle ?? "",
-                )
-            } else if let album = roots.object(at: index) as? PHAssetCollection {
-                paths[album.localIdentifier] = album.localizedTitle ?? ""
-            }
+            visit(roots.object(at: index), parent: "")
         }
         var albums: [PhotoAlbum] = []
         for (result, shared) in [(collections, false), (sharedCollections, true)] {
@@ -151,6 +147,17 @@ public struct PhotoKitStore: PhotoLibraryStore {
         return out
     }
 
+    /// The display path of a collection inside `parent`. The macOS 27 root
+    /// folder (`PHCollectionListSubtype.rootFolder`) holds the top-level
+    /// collections and contributes nothing, so a top-level album's path
+    /// stays its bare title.
+    static func folderPath(parent: String, title: String?, isRoot: Bool) -> String {
+        if isRoot {
+            return parent
+        }
+        return parent.isEmpty ? (title ?? "") : "\(parent)/\(title ?? "")"
+    }
+
     // MARK: - Mapping
 
     /// Maps a `PHAsset` to the library's value type, description, keywords,
@@ -177,7 +184,17 @@ public struct PhotoKitStore: PhotoLibraryStore {
             keywords: metadata.keywords.isEmpty ? nil : metadata.keywords,
             rating: Self.stars(from: asset.rating),
             fileSize: primary?.dataSize,
+            isLivePhoto: asset.mediaSubtypes.contains(.photoLive),
+            originalResource: Self.originalResource(from: asset.originalResourceChoice),
         )
+    }
+
+    /// The library's value for a PhotoKit original-resource choice.
+    static func originalResource(from choice: PHAsset.OriginalResourceChoice) -> PhotoOriginalResource {
+        switch choice {
+        case .raw: .raw
+        default: .compressed
+        }
     }
 
     /// The star count for a PhotoKit rating; `nil` when unrated.
@@ -491,6 +508,18 @@ public struct PhotoKitStore: PhotoLibraryStore {
             guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: Self.assetFetchOptions()).firstObject
             else { return }
             PHAssetChangeRequest(for: asset).rating = rating
+        }
+    }
+
+    @concurrent public func setLivePhotoPlayback(id: String, enabled: Bool) async throws {
+        try await ensureAuthorized()
+        guard try editableAsset(id).mediaSubtypes.contains(.photoLive) else {
+            throw PhotoServiceError.invalidInput("asset \(id) is not a Live Photo")
+        }
+        try await performChanges {
+            guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: Self.assetFetchOptions()).firstObject
+            else { return }
+            PHAssetChangeRequest(for: asset).setLivePhotoVideoPlaybackEnabled(enabled)
         }
     }
 
