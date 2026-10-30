@@ -1,6 +1,18 @@
 // swift-tools-version: 6.4
 import PackageDescription
 
+/// Upcoming language features Swift 6 mode leaves off, plus strict memory
+/// safety, applied to every target so library and tests build the same way.
+let swiftSettings: [SwiftSetting] = [
+    .enableUpcomingFeature("ExistentialAny"),
+    .enableUpcomingFeature("MemberImportVisibility"),
+    .enableUpcomingFeature("InternalImportsByDefault"),
+    .enableUpcomingFeature("InferIsolatedConformances"),
+    .enableUpcomingFeature("ImmutableWeakCaptures"),
+    .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
+    .strictMemorySafety(),
+]
+
 let package = Package(
     name: "swift-photos-automation",
     platforms: [.macOS("27.2")],
@@ -10,18 +22,12 @@ let package = Package(
     targets: [
         .target(
             name: "PhotosAutomation",
-            swiftSettings: [
-                .enableUpcomingFeature("ExistentialAny"),
-                .enableUpcomingFeature("MemberImportVisibility"),
-            ],
+            swiftSettings: swiftSettings,
         ),
         .testTarget(
             name: "PhotosAutomationTests",
             dependencies: ["PhotosAutomation"],
-            swiftSettings: [
-                .enableUpcomingFeature("ExistentialAny"),
-                .enableUpcomingFeature("MemberImportVisibility"),
-            ],
+            swiftSettings: swiftSettings,
         ),
     ],
     swiftLanguageModes: [.v6],

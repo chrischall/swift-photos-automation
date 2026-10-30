@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation
 import UniformTypeIdentifiers
 
 /// High-level facade over the Photos library.
@@ -62,6 +62,46 @@ public struct PhotoService: Sendable {
             cleanPhantoms: cleanPhantoms,
             progress: progress,
         )
+    }
+
+    /// ``copyAlbum(sourceAlbumId:targetAlbumId:dryRun:cleanPhantoms:progress:)``
+    /// reporting into a Foundation `Subprogress` instead of a callback, so
+    /// the copy can be one part of a caller's larger `ProgressManager` tree.
+    ///
+    /// The subprogress starts indeterminate; its total becomes the number
+    /// of source assets at the first report, and each processed asset
+    /// (copied, skipped as a duplicate, or failed) completes one unit.
+    /// When the copy throws, the error is the signal: Foundation still
+    /// counts the subprogress's share of the parent as done once this call
+    /// releases its `ProgressManager`.
+    public func copyAlbum(
+        sourceAlbumId: String,
+        targetAlbumId: String,
+        dryRun: Bool = false,
+        cleanPhantoms: Bool = false,
+        subprogress: consuming Subprogress,
+    ) async throws -> PhotoCopyResult {
+        let manager = subprogress.start(totalCount: nil)
+        return try await copyAlbum(
+            sourceAlbumId: sourceAlbumId, targetAlbumId: targetAlbumId,
+            dryRun: dryRun, cleanPhantoms: cleanPhantoms,
+        ) { event in
+            Self.report(event, to: manager)
+        }
+    }
+
+    /// Mirrors one callback event onto a `ProgressManager`. An empty copy
+    /// (total 0) is reported as one unit of one, so it still finishes.
+    static func report(_ event: PhotoCopyProgress, to manager: ProgressManager) {
+        manager.setCounts { completed, total in
+            if event.total == 0 {
+                total = 1
+                completed = 1
+            } else {
+                total = event.total
+                completed = min(event.done, event.total)
+            }
+        }
     }
 
     struct AlbumCopyPlan: Equatable {
@@ -299,6 +339,16 @@ public struct PhotoService: Sendable {
         try await store.setRating(id: id, stars)
     }
 
+    /// Turns a Live Photo's motion on or off. Off leaves it playing as a
+    /// still image; the paired video is kept, so `true` restores it.
+    ///
+    /// Same transport and errors as ``setDescription(id:_:)``; an asset
+    /// that is not a Live Photo is refused.
+    public func setLivePhotoPlayback(id: String, enabled: Bool) async throws {
+        let id = try Self.validateNonEmpty(id, name: "id")
+        try await store.setLivePhotoPlayback(id: id, enabled: enabled)
+    }
+
     static func setTitleScript(id: String, title: String) -> String {
         """
         tell application "Photos"
@@ -458,9 +508,10 @@ public struct PhotoService: Sendable {
         var tail: [String] = []
         var resolved: String
         while true {
-            if let real = realpath(existing, nil) {
-                resolved = String(cString: real)
-                free(real)
+            // realpath(3) mallocs the result; copy it out, then free it.
+            if let real = unsafe realpath(existing, nil) {
+                resolved = unsafe String(cString: real)
+                unsafe free(real)
                 break
             }
             if (try? FileManager.default.destinationOfSymbolicLink(atPath: existing)) != nil {
@@ -505,7 +556,7 @@ public struct PhotoService: Sendable {
     /// whose extension maps to an image or video type.
     static func validateImportable(_ url: URL) throws(PhotoServiceError) {
         var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
+        guard unsafe FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
             throw PhotoServiceError.invalidInput("file does not exist: \(url.path)")
         }
         guard !isDirectory.boolValue else {

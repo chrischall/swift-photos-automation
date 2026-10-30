@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation
 
 /// Structured search criteria evaluated by PhotoKit predicates.
 ///

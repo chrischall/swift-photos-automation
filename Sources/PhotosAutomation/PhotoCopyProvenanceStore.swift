@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation
 import Synchronization
 
 /// Durable mapping from shared source identifiers to the local Photos assets

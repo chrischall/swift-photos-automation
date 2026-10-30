@@ -1,6 +1,6 @@
+public import Foundation
 import AppKit
 import CoreLocation
-import Foundation
 import Photos
 import UniformTypeIdentifiers
 
@@ -14,6 +14,16 @@ import UniformTypeIdentifiers
 /// > bundles declare `NSPhotoLibraryUsageDescription` in Info.plist;
 /// > bare executables (like apple-swift-mcp) embed one via the
 /// > `-sectcreate __TEXT __info_plist` linker flag.
+///
+/// ## Isolation
+///
+/// The package builds with `NonisolatedNonsendingByDefault`, so a plain
+/// `async` function runs on its caller's actor. Every public method here
+/// is `@concurrent` instead: PhotoKit fetches, resource enumeration and
+/// file I/O are synchronous and can be slow on a large library, so they
+/// must never land on the caller's actor (often the main actor, which
+/// ``NSAppleScriptRunner`` also needs). Private helpers stay
+/// caller-isolated and so inherit the `@concurrent` method's executor.
 public struct PhotoKitStore: PhotoLibraryStore {
     private let provenanceStore: PhotoCopyProvenanceStore
 
@@ -37,7 +47,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
 
     // MARK: - Reads
 
-    public func listAlbums() async throws -> [PhotoAlbum] {
+    @concurrent public func listAlbums() async throws -> [PhotoAlbum] {
         try await ensureAuthorized()
         let collections = PHAssetCollection.fetchAssetCollections(
             with: .album, subtype: .albumRegular, options: nil,
@@ -46,29 +56,25 @@ public struct PhotoKitStore: PhotoLibraryStore {
             with: .album, subtype: .albumCloudShared, options: nil,
         )
         var paths: [String: String] = [:]
-        func walk(_ list: PHCollectionList, prefix: String) {
-            let children = PHCollectionList.fetchCollections(in: list, options: nil)
-            for index in 0 ..< children.count {
-                let child = children.object(at: index)
-                let path = prefix.isEmpty ? (child.localizedTitle ?? "") : "\(prefix)/\(child.localizedTitle ?? "")"
-                if let album = child as? PHAssetCollection {
-                    paths[album.localIdentifier] = path
-                }
-                if let folder = child as? PHCollectionList {
-                    walk(folder, prefix: path)
+        func visit(_ collection: PHCollection, parent: String) {
+            if let album = collection as? PHAssetCollection {
+                paths[album.localIdentifier] = Self.folderPath(
+                    parent: parent,
+                    title: album.localizedTitle,
+                    isRoot: false,
+                )
+            } else if let folder = collection as? PHCollectionList {
+                let path = Self.folderPath(parent: parent, title: folder.localizedTitle,
+                                           isRoot: folder.collectionListSubtype == .rootFolder)
+                let children = PHCollectionList.fetchCollections(in: folder, options: nil)
+                for index in 0 ..< children.count {
+                    visit(children.object(at: index), parent: path)
                 }
             }
         }
         let roots = PHCollectionList.fetchTopLevelUserCollections(with: nil)
         for index in 0 ..< roots.count {
-            if let folder = roots.object(at: index) as? PHCollectionList {
-                walk(
-                    folder,
-                    prefix: folder.localizedTitle ?? "",
-                )
-            } else if let album = roots.object(at: index) as? PHAssetCollection {
-                paths[album.localIdentifier] = album.localizedTitle ?? ""
-            }
+            visit(roots.object(at: index), parent: "")
         }
         var albums: [PhotoAlbum] = []
         for (result, shared) in [(collections, false), (sharedCollections, true)] {
@@ -82,7 +88,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
         return albums
     }
 
-    public func assets(matching criteria: PhotoSearchCriteria) async throws -> [PhotoAsset] {
+    @concurrent public func assets(matching criteria: PhotoSearchCriteria) async throws -> [PhotoAsset] {
         try await ensureAuthorized()
         let options = PHFetchOptions()
         options.includeAssetSourceTypes = [.typeUserLibrary, .typeCloudShared]
@@ -123,7 +129,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
         return out
     }
 
-    public func asset(id: String) async throws -> PhotoAsset? {
+    @concurrent public func asset(id: String) async throws -> PhotoAsset? {
         try await ensureAuthorized()
         guard let phAsset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: Self.assetFetchOptions()).firstObject else {
             return nil
@@ -131,7 +137,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
         return Self.photoAsset(from: phAsset)
     }
 
-    public func assets(ids: [String]) async throws -> [PhotoAsset] {
+    @concurrent public func assets(ids: [String]) async throws -> [PhotoAsset] {
         try await ensureAuthorized()
         let fetch = PHAsset.fetchAssets(withLocalIdentifiers: ids, options: Self.assetFetchOptions())
         var out: [PhotoAsset] = []
@@ -139,6 +145,17 @@ public struct PhotoKitStore: PhotoLibraryStore {
             out.append(Self.photoAsset(from: fetch.object(at: i)))
         }
         return out
+    }
+
+    /// The display path of a collection inside `parent`. The macOS 27 root
+    /// folder (`PHCollectionListSubtype.rootFolder`) holds the top-level
+    /// collections and contributes nothing, so a top-level album's path
+    /// stays its bare title.
+    static func folderPath(parent: String, title: String?, isRoot: Bool) -> String {
+        if isRoot {
+            return parent
+        }
+        return parent.isEmpty ? (title ?? "") : "\(parent)/\(title ?? "")"
     }
 
     // MARK: - Mapping
@@ -167,7 +184,17 @@ public struct PhotoKitStore: PhotoLibraryStore {
             keywords: metadata.keywords.isEmpty ? nil : metadata.keywords,
             rating: Self.stars(from: asset.rating),
             fileSize: primary?.dataSize,
+            isLivePhoto: asset.mediaSubtypes.contains(.photoLive),
+            originalResource: Self.originalResource(from: asset.originalResourceChoice),
         )
+    }
+
+    /// The library's value for a PhotoKit original-resource choice.
+    static func originalResource(from choice: PHAsset.OriginalResourceChoice) -> PhotoOriginalResource {
+        switch choice {
+        case .raw: .raw
+        default: .compressed
+        }
     }
 
     /// The star count for a PhotoKit rating; `nil` when unrated.
@@ -225,7 +252,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
 
     // MARK: - Export and image data
 
-    public func exportOriginals(ids: [String], to directory: URL) async throws -> [URL] {
+    @concurrent public func exportOriginals(ids: [String], to directory: URL) async throws -> [URL] {
         try await ensureAuthorized()
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -288,7 +315,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
         return written
     }
 
-    public func imageData(id: String, maxDimension: Int) async throws -> Data {
+    @concurrent public func imageData(id: String, maxDimension: Int) async throws -> Data {
         try await ensureAuthorized()
         guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: Self.assetFetchOptions()).firstObject else {
             throw PhotoServiceError.notFound("asset \(id)")
@@ -317,7 +344,8 @@ public struct PhotoKitStore: PhotoLibraryStore {
                 }
                 // Encode straight from the CGImage — no TIFF round-trip, so
                 // the bitmap is not buffered a second time.
-                guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
+                // `forProposedRect` is an UnsafeMutablePointer<NSRect>; nil is safe.
+                guard let cgImage = unsafe image.cgImage(forProposedRect: nil, context: nil, hints: nil),
                       let jpeg = NSBitmapImageRep(cgImage: cgImage)
                           .representation(using: .jpeg, properties: [.compressionFactor: 0.85])
                 else {
@@ -370,7 +398,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
         }
     }
 
-    public func createAlbum(title: String) async throws -> PhotoAlbum {
+    @concurrent public func createAlbum(title: String) async throws -> PhotoAlbum {
         try await ensureAuthorized()
         let createdId = Locked<String?>(nil)
         try await performChanges {
@@ -398,7 +426,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
     /// > operation, so it cannot run unattended — the `performChanges`
     /// > completion won't fire until the user responds. Call it only from
     /// > interactive contexts; the integration suite deliberately never does.
-    public func deleteAlbum(id: String) async throws {
+    @concurrent public func deleteAlbum(id: String) async throws {
         try await ensureAuthorized()
         try ensureAlbumExists(id)
         try await performChanges {
@@ -407,7 +435,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
         }
     }
 
-    public func add(ids: [String], toAlbum albumId: String) async throws {
+    @concurrent public func add(ids: [String], toAlbum albumId: String) async throws {
         try await ensureAuthorized()
         try ensureAssetsExist(ids)
         let assets = PHAsset.fetchAssets(withLocalIdentifiers: ids, options: Self.assetFetchOptions())
@@ -427,7 +455,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
         }
     }
 
-    public func remove(ids: [String], fromAlbum albumId: String) async throws {
+    @concurrent public func remove(ids: [String], fromAlbum albumId: String) async throws {
         try await ensureAuthorized()
         try ensureAssetsExist(ids)
         try ensureAlbumEditable(albumId, operation: .removeContent)
@@ -441,7 +469,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
         }
     }
 
-    public func setDescription(id: String, _ description: String) async throws {
+    @concurrent public func setDescription(id: String, _ description: String) async throws {
         try await ensureAuthorized()
         _ = try editableAsset(id)
         try await performChanges {
@@ -453,7 +481,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
         }
     }
 
-    public func setKeywords(id: String, _ keywords: [String]) async throws {
+    @concurrent public func setKeywords(id: String, _ keywords: [String]) async throws {
         try await ensureAuthorized()
         let edits = try Self.keywordEdits(current: editableAsset(id).extendedMetadata.keywords, desired: keywords)
         guard !edits.remove.isEmpty || !edits.add.isEmpty else { return }
@@ -470,7 +498,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
         }
     }
 
-    public func setRating(id: String, _ stars: Int) async throws {
+    @concurrent public func setRating(id: String, _ stars: Int) async throws {
         guard let rating = Self.rating(stars: stars) else {
             throw PhotoServiceError.invalidInput("rating must be 0–5 (0 clears it)")
         }
@@ -480,6 +508,18 @@ public struct PhotoKitStore: PhotoLibraryStore {
             guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: Self.assetFetchOptions()).firstObject
             else { return }
             PHAssetChangeRequest(for: asset).rating = rating
+        }
+    }
+
+    @concurrent public func setLivePhotoPlayback(id: String, enabled: Bool) async throws {
+        try await ensureAuthorized()
+        guard try editableAsset(id).mediaSubtypes.contains(.photoLive) else {
+            throw PhotoServiceError.invalidInput("asset \(id) is not a Live Photo")
+        }
+        try await performChanges {
+            guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: Self.assetFetchOptions()).firstObject
+            else { return }
+            PHAssetChangeRequest(for: asset).setLivePhotoVideoPlaybackEnabled(enabled)
         }
     }
 
@@ -509,7 +549,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
         return asset
     }
 
-    public func setFavorite(id: String, _ isFavorite: Bool) async throws {
+    @concurrent public func setFavorite(id: String, _ isFavorite: Bool) async throws {
         try await ensureAuthorized()
         try ensureAssetsExist([id])
         try await performChanges {
@@ -519,7 +559,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
         }
     }
 
-    public func importFiles(urls: [URL], toAlbum albumId: String?) async throws -> [PhotoAsset] {
+    @concurrent public func importFiles(urls: [URL], toAlbum albumId: String?) async throws -> [PhotoAsset] {
         try await ensureAuthorized()
         if let albumId {
             try ensureAlbumEditable(albumId, operation: .addContent)
@@ -576,7 +616,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
                             dryRun: dryRun, cleanPhantoms: cleanPhantoms, progress: nil)
     }
 
-    public func copyAlbum(
+    @concurrent public func copyAlbum(
         sourceAlbumId: String,
         targetAlbumId: String,
         dryRun: Bool,

@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation
 
 /// Abstracts PhotoKit so ``PhotoService`` can be unit-tested without a
 /// real Photos library or TCC grant.
@@ -42,6 +42,9 @@ public protocol PhotoLibraryStore: Sendable {
     func setKeywords(id: String, _ keywords: [String]) async throws
     /// Sets the asset's star rating, 1–5; `0` clears it.
     func setRating(id: String, _ stars: Int) async throws
+    /// Turns a Live Photo's motion on (`true`) or off, leaving a still.
+    /// Throws for an asset that is not a Live Photo.
+    func setLivePhotoPlayback(id: String, enabled: Bool) async throws
     /// Imports the files at `urls` into the library and optionally into
     /// the album with `albumId`. Returns the created assets.
     func importFiles(urls: [URL], toAlbum albumId: String?) async throws -> [PhotoAsset]
@@ -68,6 +71,10 @@ public extension PhotoLibraryStore {
 
     func setRating(id _: String, _: Int) async throws {
         throw PhotoServiceError.operationFailed("this Photos store cannot write ratings")
+    }
+
+    func setLivePhotoPlayback(id _: String, enabled _: Bool) async throws {
+        throw PhotoServiceError.operationFailed("this Photos store cannot change Live Photo playback")
     }
 
     func copyAlbum(sourceAlbumId: String, targetAlbumId: String, dryRun: Bool, cleanPhantoms: Bool,

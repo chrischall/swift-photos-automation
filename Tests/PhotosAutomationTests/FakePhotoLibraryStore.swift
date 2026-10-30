@@ -13,6 +13,11 @@ final class FakePhotoLibraryStore: PhotoLibraryStore, @unchecked Sendable {
     var importResult: [PhotoAsset] = []
     var copyResult = PhotoCopyResult()
     var errorToThrow: any Error?
+    /// Progress events `copyAlbum(…progress:)` reports, in order.
+    var progressEvents: [PhotoCopyProgress] = []
+    /// Called after each progress event is delivered, so a test can look
+    /// at what the caller did with it.
+    var afterEachProgress: (@Sendable () -> Void)?
 
     private(set) var calls: [String] = []
     private(set) var lastCriteria: PhotoSearchCriteria?
@@ -67,6 +72,10 @@ final class FakePhotoLibraryStore: PhotoLibraryStore, @unchecked Sendable {
         try record("setRating(\(id), \(stars))")
     }
 
+    func setLivePhotoPlayback(id: String, enabled: Bool) async throws {
+        try record("setLivePhotoPlayback(\(id), \(enabled))")
+    }
+
     func createAlbum(title: String) async throws -> PhotoAlbum {
         try record("createAlbum(\(title))")
         return createdAlbum
@@ -100,6 +109,17 @@ final class FakePhotoLibraryStore: PhotoLibraryStore, @unchecked Sendable {
 
     func copyAlbum(sourceAlbumId: String, targetAlbumId: String, dryRun: Bool, cleanPhantoms: Bool) async throws -> PhotoCopyResult {
         try record("copyAlbum(\(sourceAlbumId), \(targetAlbumId), dryRun: \(dryRun), cleanPhantoms: \(cleanPhantoms))")
+        return copyResult
+    }
+
+    func copyAlbum(sourceAlbumId: String, targetAlbumId: String, dryRun: Bool, cleanPhantoms: Bool,
+                   progress: (@Sendable (PhotoCopyProgress) -> Void)?) async throws -> PhotoCopyResult
+    {
+        try record("copyAlbum(\(sourceAlbumId), \(targetAlbumId), dryRun: \(dryRun), cleanPhantoms: \(cleanPhantoms))")
+        for event in progressEvents {
+            progress?(event)
+            afterEachProgress?()
+        }
         return copyResult
     }
 }
