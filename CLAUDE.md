@@ -41,7 +41,9 @@ swiftformat . --lint                                 # lint (config in .swiftfor
 4. **No deletion of assets or albums, ever** — PhotoKit deletion of either always shows a blocking confirmation dialog. The integration suite therefore deletes nothing it creates: the imported 1×1 test PNG and the uniquely-named `PhotosAutomationTests-*` album both stay in the library (documented in README; remove by hand).
 5. **`performChanges` closures are `@Sendable` and run on an arbitrary queue** — fetch PH objects *inside* the closure; smuggle results out via `Locked<T>` (a `Mutex` box; mutate with `withLock`), never captured vars.
 6. **Title hydration is best-effort**: `asset(id:)` swallows AppleScript failures and leaves `title` `nil`; description/keywords/rating come from PhotoKit and are unaffected. `setTitle` propagates `AppleScriptError`; `setDescription`/`setKeywords`/`setRating` throw `PhotoServiceError` — consumers catch both error types.
-7. **Test names are raw identifiers** (``@Test func `does a thing`()``) — `.swiftformat` targets Swift 6.4, and swiftformat rewrites camelCase test names this way.
+7. **Isolation: the package builds with `NonisolatedNonsendingByDefault`**, so a plain `async` func runs on its caller's actor. Every public `PhotoKitStore` method is `@concurrent` (PhotoKit fetches and file I/O block and must never run on the caller's — often main — actor); new ones must be too. `PhotoService`, the protocol requirements and private helpers stay caller-isolated. `NSAppleScriptRunner` hops to the main actor explicitly.
+8. **`InternalImportsByDefault` is on**: a file whose public API uses Foundation types needs `public import Foundation`; Photos/AppKit stay internal imports, so no PhotoKit type may appear in public API. Pointer interop is marked `unsafe` (`.strictMemorySafety()`).
+9. **Test names are raw identifiers** (``@Test func `does a thing`()``) — `.swiftformat` targets Swift 6.4, and swiftformat rewrites camelCase test names this way.
 
 <!-- pr-workflow:v3 -->
 ## Pull requests & release notes
