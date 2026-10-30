@@ -447,7 +447,9 @@ public struct PhotoKitStore: PhotoLibraryStore {
         try await performChanges {
             guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: Self.assetFetchOptions()).firstObject
             else { return }
-            PHAssetChangeRequest(for: asset).caption = description.isEmpty ? nil : description
+            // An empty string clears the caption; PhotoKit reads `nil` as
+            // "leave it unchanged" (seen live on macOS 27.2).
+            PHAssetChangeRequest(for: asset).caption = description
         }
     }
 

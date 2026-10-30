@@ -163,10 +163,6 @@ struct PhotoServiceIntegrationTests {
         #expect(afterRemove.isEmpty)
     }
 
-    /// AppleScript metadata round-trip on a freshly imported asset — the
-    /// live proof that a PhotoKit `localIdentifier` also works as an
-    /// AppleScript `media item id` (title/keywords written via AppleScript
-    /// are read back on the same id). Requires Automation → Photos.
     @Test(Self.enabledTrait)
     func `metadata round-trip via PhotoKit (description, keywords, rating)`() async throws {
         let service = Self.makeService()
@@ -203,6 +199,10 @@ struct PhotoServiceIntegrationTests {
         #expect(cleared.rating == nil)
     }
 
+    /// AppleScript title round-trip on a freshly imported asset — the live
+    /// proof that a PhotoKit `localIdentifier` also works as an AppleScript
+    /// `media item id` (a title written via AppleScript is read back on the
+    /// same id). Requires Automation → Photos.
     @Test(Self.enabledTrait, Self.appleScriptTrait)
     func `title round-trip via AppleScript`() async throws {
         let service = Self.makeService()
