@@ -12,7 +12,7 @@ final class FakePhotoLibraryStore: PhotoLibraryStore, @unchecked Sendable {
     var createdAlbum = PhotoAlbum(id: "new-album", title: "New", assetCount: 0)
     var importResult: [PhotoAsset] = []
     var copyResult = PhotoCopyResult()
-    var errorToThrow: Error?
+    var errorToThrow: any Error?
 
     private(set) var calls: [String] = []
     private(set) var lastCriteria: PhotoSearchCriteria?

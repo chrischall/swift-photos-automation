@@ -3,7 +3,7 @@ import Foundation
 import Testing
 
 struct ModelTests {
-    @Test func photoAssetDefaultsAndIdentity() {
+    @Test func `photo asset defaults and identity`() {
         let asset = PhotoAsset(id: "ABC/L0/001")
         #expect(asset.id == "ABC/L0/001")
         #expect(asset.mediaType == .image)
@@ -12,21 +12,21 @@ struct ModelTests {
         #expect(asset.keywords == nil)
     }
 
-    @Test func photoAssetEquatableHashable() {
+    @Test func `photo asset equatable hashable`() {
         let a = PhotoAsset(id: "A")
         let b = PhotoAsset(id: "A")
         #expect(a == b)
         #expect(Set([a, b]).count == 1)
     }
 
-    @Test func photoAlbum() {
+    @Test func `photo album`() {
         let album = PhotoAlbum(id: "alb1", title: "Trips", assetCount: 3)
         #expect(album.id == "alb1")
         #expect(album.title == "Trips")
         #expect(album.assetCount == 3)
     }
 
-    @Test func searchCriteriaDefaults() {
+    @Test func `search criteria defaults`() {
         let criteria = PhotoSearchCriteria()
         #expect(criteria.startDate == nil)
         #expect(criteria.endDate == nil)
@@ -36,7 +36,7 @@ struct ModelTests {
         #expect(criteria.limit == 50)
     }
 
-    @Test func mediaTypeRawValues() {
+    @Test func `media type raw values`() {
         #expect(PhotoMediaType.image.rawValue == "image")
         #expect(PhotoMediaType.video.rawValue == "video")
         #expect(PhotoMediaType.audio.rawValue == "audio")

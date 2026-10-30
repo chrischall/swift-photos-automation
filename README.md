@@ -16,8 +16,8 @@ Swift library for driving the Apple Photos library on macOS. One
   Photos' own search engine (matches titles, keywords, and detected
   content).
 
-Platform: **macOS 14+**. Pure Swift 6 with strict concurrency. Zero
-external dependencies.
+Platform: **macOS 26+** (built with Swift 6.4). Pure Swift 6 with strict
+concurrency. Zero external dependencies.
 
 ## Install
 
@@ -56,12 +56,12 @@ try await service.setTitle(id: asset.id, "Golden hour")
 
 // Export originals (photos and videos)
 let files = try await service.exportOriginals(
-    ids: [asset.id], to: URL(fileURLWithPath: "/tmp/photos-export")
+    ids: [asset.id], to: URL(filePath: "/tmp/photos-export")
 )
 
 // Import
 let imported = try await service.importFiles(
-    urls: [URL(fileURLWithPath: "/tmp/new.jpg")], albumId: album.id
+    urls: [URL(filePath: "/tmp/new.jpg")], albumId: album.id
 )
 ```
 

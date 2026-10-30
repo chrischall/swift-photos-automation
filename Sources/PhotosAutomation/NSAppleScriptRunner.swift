@@ -50,7 +50,7 @@ public struct NSAppleScriptRunner: AppleScriptRunner {
     /// established in one place — and can be asserted by tests without
     /// needing Photos.app or an Automation permission grant.
     static func onMainThread<T: Sendable>(
-        _ body: @MainActor @Sendable () throws -> T
+        _ body: @MainActor @Sendable () throws -> T,
     ) async rethrows -> T {
         try await MainActor.run(body: body)
     }

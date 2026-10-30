@@ -68,7 +68,7 @@ public struct PhotoAsset: Equatable, Hashable, Identifiable, Sendable {
         sourceType: PhotoAssetSourceType = .userLibrary,
         title: String? = nil,
         itemDescription: String? = nil,
-        keywords: [String]? = nil
+        keywords: [String]? = nil,
     ) {
         self.id = id
         self.originalFilename = originalFilename

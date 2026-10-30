@@ -3,12 +3,12 @@ import Foundation
 import Testing
 
 struct AppleScriptErrorTests {
-    @Test func runtimeDescription() {
+    @Test func `runtime description`() {
         let error = AppleScriptError.runtime("Photos got an error")
         #expect(error.errorDescription == "AppleScript runtime error: Photos got an error")
     }
 
-    @Test func compileDescription() {
+    @Test func `compile description`() {
         let error = AppleScriptError.compile("bad source")
         #expect(error.errorDescription == "AppleScript compile error: bad source")
     }
@@ -36,5 +36,36 @@ struct PhotoServiceErrorTests {
     @Test func equatable() {
         #expect(PhotoServiceError.permissionDenied == PhotoServiceError.permissionDenied)
         #expect(PhotoServiceError.notFound("a") != PhotoServiceError.notFound("b"))
+    }
+}
+
+/// The validators use typed throws, so `catch` binds a `PhotoServiceError`
+/// directly — these would not compile against an untyped `throws`.
+struct ValidatorTypedThrowsTests {
+    @Test func `validateIds throws PhotoServiceError`() {
+        do {
+            _ = try PhotoService.validateIds([])
+            Issue.record("expected a throw")
+        } catch {
+            #expect(error == .invalidInput("ids must not be empty"))
+        }
+    }
+
+    @Test func `validatePositive throws PhotoServiceError`() {
+        do {
+            try PhotoService.validatePositive(0)
+            Issue.record("expected a throw")
+        } catch {
+            #expect(error == .invalidInput("limit must be positive"))
+        }
+    }
+
+    @Test func `validateNonEmpty throws PhotoServiceError`() {
+        do {
+            try PhotoService.validateNonEmpty(" ", name: "id")
+            Issue.record("expected a throw")
+        } catch {
+            #expect(error == .invalidInput("id must not be empty"))
+        }
     }
 }

@@ -11,20 +11,20 @@ struct NSAppleScriptRunnerTests {
     static let enabled = ProcessInfo.processInfo.environment["PHOTOS_AUTOMATION_INTEGRATION"] == "1"
     static let enabledComment: Comment = "set PHOTOS_AUTOMATION_INTEGRATION=1 to run live AppleScript tests"
 
-    @Test("returns scalar string", .disabled(if: !enabled, enabledComment))
-    func scalar() async throws {
+    @Test(.disabled(if: !enabled, enabledComment))
+    func `returns scalar string`() async throws {
         let out = try await NSAppleScriptRunner().run(source: #"return "hello""#)
         #expect(out == "hello")
     }
 
-    @Test("empty result coerces to empty string", .disabled(if: !enabled, enabledComment))
-    func emptyResult() async throws {
+    @Test(.disabled(if: !enabled, enabledComment))
+    func `empty result coerces to empty string`() async throws {
         let out = try await NSAppleScriptRunner().run(source: "return")
         #expect(out == "")
     }
 
-    @Test("runtime error surfaces as AppleScriptError.runtime", .disabled(if: !enabled, enabledComment))
-    func runtimeError() async {
+    @Test(.disabled(if: !enabled, enabledComment))
+    func `runtime error surfaces as AppleScriptError.runtime`() async {
         await #expect(throws: AppleScriptError.runtime("boom")) {
             _ = try await NSAppleScriptRunner().run(source: #"error "boom""#)
         }
@@ -54,8 +54,8 @@ struct NSAppleScriptRunnerTests {
 /// useful on CI — where it is the sole guard against this regression.
 @Suite("NSAppleScriptRunner thread affinity", .serialized)
 struct NSAppleScriptRunnerThreadAffinityTests {
-    @Test("script execution is confined to the main thread")
-    func executesOnMainThread() async {
+    @Test
+    func `script execution is confined to the main thread`() async {
         let ranOnMain = await NSAppleScriptRunner.onMainThread { Thread.isMainThread }
         #expect(
             ranOnMain,
@@ -63,18 +63,18 @@ struct NSAppleScriptRunnerThreadAffinityTests {
             NSAppleScript must execute on the main thread — Apple Event \
             replies are delivered to the main run loop, so running it \
             elsewhere stalls every `tell application` script.
-            """
+            """,
         )
     }
 
-    @Test("the result of the main-thread hop reaches the caller")
-    func propagatesResult() async {
+    @Test
+    func `the result of the main-thread hop reaches the caller`() async {
         let value = await NSAppleScriptRunner.onMainThread { 6 * 7 }
         #expect(value == 42)
     }
 
-    @Test("errors thrown on the main thread propagate to the caller")
-    func propagatesThrow() async {
+    @Test
+    func `errors thrown on the main thread propagate to the caller`() async {
         await #expect(throws: AppleScriptError.self) {
             try await NSAppleScriptRunner.onMainThread {
                 throw AppleScriptError.compile("boom")

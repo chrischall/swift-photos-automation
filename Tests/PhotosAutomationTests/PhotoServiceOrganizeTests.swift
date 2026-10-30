@@ -10,71 +10,71 @@ struct PhotoServiceOrganizeTests {
 
     // MARK: albums
 
-    @Test func createAlbumPassesTitleThrough() async throws {
+    @Test func `create album passes title through`() async throws {
         store.createdAlbum = PhotoAlbum(id: "n1", title: "Trip", assetCount: 0)
         let album = try await service.createAlbum(title: "Trip")
         #expect(album == PhotoAlbum(id: "n1", title: "Trip", assetCount: 0))
         #expect(store.calls == ["createAlbum(Trip)"])
     }
 
-    @Test func createAlbumRejectsEmptyTitle() async {
+    @Test func `create album rejects empty title`() async {
         await #expect(throws: PhotoServiceError.invalidInput("title must not be empty")) {
             _ = try await self.service.createAlbum(title: "")
         }
     }
 
-    @Test func addRejectsEmptyIds() async {
+    @Test func `add rejects empty ids`() async {
         await #expect(throws: PhotoServiceError.invalidInput("ids must not be empty")) {
             try await self.service.add(ids: [], toAlbum: "alb")
         }
     }
 
-    @Test func addRejectsBlankMember() async {
+    @Test func `add rejects blank member`() async {
         await #expect(throws: PhotoServiceError.invalidInput("ids must not contain blank values")) {
             try await self.service.add(ids: ["ok", " "], toAlbum: "alb")
         }
     }
 
-    @Test func addAndRemovePassThrough() async throws {
+    @Test func `add and remove pass through`() async throws {
         try await service.add(ids: ["a"], toAlbum: "alb")
         try await service.remove(ids: ["a"], fromAlbum: "alb")
         #expect(store.calls == [#"add(["a"], toAlbum: alb)"#, #"remove(["a"], fromAlbum: alb)"#])
     }
 
-    @Test func addAndRemoveDeduplicateIdsPreservingOrder() async throws {
+    @Test func `add and remove deduplicate ids preserving order`() async throws {
         try await service.add(ids: ["b", "a", "b", "a"], toAlbum: "alb")
         try await service.remove(ids: ["a", "a"], fromAlbum: "alb")
         #expect(store.calls == [#"add(["b", "a"], toAlbum: alb)"#, #"remove(["a"], fromAlbum: alb)"#])
     }
 
-    @Test func addDeduplicatesAfterTrimming() async throws {
+    @Test func `add deduplicates after trimming`() async throws {
         try await service.add(ids: ["a", " a "], toAlbum: "alb")
         #expect(store.calls == [#"add(["a"], toAlbum: alb)"#])
     }
 
     // MARK: favorite
 
-    @Test func setFavoritePassesThrough() async throws {
+    @Test func `set favorite passes through`() async throws {
         try await service.setFavorite(id: "a", true)
         #expect(store.calls == ["setFavorite(a, true)"])
     }
 
     // MARK: export
 
-    @Test func exportPassesThrough() async throws {
+    @Test func `export passes through`() async throws {
         let dir = URL(fileURLWithPath: "/tmp/exports")
         store.exportResult = [dir.appendingPathComponent("IMG_1.HEIC")]
         let urls = try await service.exportOriginals(ids: ["a"], to: dir)
         #expect(urls == [dir.appendingPathComponent("IMG_1.HEIC")])
     }
 
-    @Test func exportForwardsTrimmedIds() async throws {
+    @Test func `export forwards trimmed ids`() async throws {
         let dir = URL(fileURLWithPath: "/tmp/exports")
         _ = try await service.exportOriginals(ids: [" a ", "b\n"], to: dir)
         #expect(store.calls == [#"exportOriginals(["a", "b"], to: /tmp/exports)"#])
     }
 
-    @Test func exportRejectsEmptyIds() async {
+    @Test func `export rejects empty ids`() async {
         await #expect(throws: PhotoServiceError.invalidInput("ids must not be empty")) {
             _ = try await self.service.exportOriginals(ids: [], to: URL(fileURLWithPath: "/tmp"))
         }
@@ -82,30 +82,30 @@ struct PhotoServiceOrganizeTests {
 
     // MARK: imageData
 
-    @Test func imageDataPassesThrough() async throws {
+    @Test func `image data passes through`() async throws {
         store.imageDataResult = Data([0xFF, 0xD8])
         let data = try await service.imageData(id: "a", maxDimension: 512)
         #expect(data == Data([0xFF, 0xD8]))
         #expect(store.calls == ["imageData(a, maxDimension: 512)"])
     }
 
-    @Test func imageDataDefaultsTo1024() async throws {
+    @Test func `image data defaults to 1024`() async throws {
         _ = try await service.imageData(id: "a")
         #expect(store.calls == ["imageData(a, maxDimension: 1024)"])
     }
 
-    @Test func imageDataRejectsNonPositiveDimension() async {
+    @Test func `image data rejects non positive dimension`() async {
         await #expect(throws: PhotoServiceError.invalidInput("maxDimension must be positive")) {
             _ = try await self.service.imageData(id: "a", maxDimension: 0)
         }
     }
 
-    @Test func imageDataClampsOversizedDimensionToCap() async throws {
+    @Test func `image data clamps oversized dimension to cap`() async throws {
         _ = try await service.imageData(id: "a", maxDimension: 50000)
         #expect(store.calls == ["imageData(a, maxDimension: \(PhotoService.maxRenditionDimension))"])
     }
 
-    @Test func renditionCapIsSane() {
+    @Test func `rendition cap is sane`() {
         #expect(PhotoService.maxRenditionDimension == 4096)
     }
 
@@ -117,28 +117,28 @@ struct PhotoServiceOrganizeTests {
         (2000, 900, 1600, 1600), // portrait: longest side is the height
         (800, 0, 0, 800), // unknown pixel size: cap only
     ])
-    func renditionDimensionClamps(requested: Int, width: Int, height: Int, expected: Int) {
+    func `rendition dimension clamps`(requested: Int, width: Int, height: Int, expected: Int) {
         #expect(
-            PhotoService.renditionDimension(requested: requested, pixelWidth: width, pixelHeight: height) == expected
+            PhotoService.renditionDimension(requested: requested, pixelWidth: width, pixelHeight: height) == expected,
         )
     }
 
     // MARK: import
 
-    @Test func importRejectsEmptyURLs() async {
+    @Test func `import rejects empty URLs`() async {
         await #expect(throws: PhotoServiceError.invalidInput("urls must not be empty")) {
             _ = try await self.service.importFiles(urls: [])
         }
     }
 
-    @Test func importRejectsMissingFile() async {
+    @Test func `import rejects missing file`() async {
         let missing = URL(fileURLWithPath: "/nonexistent/nope.png")
         await #expect(throws: PhotoServiceError.invalidInput("file does not exist: /nonexistent/nope.png")) {
             _ = try await self.service.importFiles(urls: [missing])
         }
     }
 
-    @Test func importRejectsDirectoryBeforeTouchingTheLibrary() async throws {
+    @Test func `import rejects directory before touching the library`() async throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("photos-automation-dir-\(UUID().uuidString).png")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -149,7 +149,7 @@ struct PhotoServiceOrganizeTests {
         #expect(store.calls.isEmpty)
     }
 
-    @Test func importRejectsUnsupportedTypeBeforeTouchingTheLibrary() async throws {
+    @Test func `import rejects unsupported type before touching the library`() async throws {
         let good = FileManager.default.temporaryDirectory
             .appendingPathComponent("photos-automation-test-\(UUID().uuidString).png")
         let bad = FileManager.default.temporaryDirectory
@@ -161,14 +161,14 @@ struct PhotoServiceOrganizeTests {
             try? FileManager.default.removeItem(at: bad)
         }
         await #expect(
-            throws: PhotoServiceError.invalidInput("unsupported file type (not an image or video): \(bad.path)")
+            throws: PhotoServiceError.invalidInput("unsupported file type (not an image or video): \(bad.path)"),
         ) {
             _ = try await self.service.importFiles(urls: [good, bad])
         }
         #expect(store.calls.isEmpty)
     }
 
-    @Test func importAcceptsVideo() async throws {
+    @Test func `import accepts video`() async throws {
         let tmp = FileManager.default.temporaryDirectory
             .appendingPathComponent("photos-automation-test-\(UUID().uuidString).mov")
         try Data([0x00]).write(to: tmp)
@@ -177,7 +177,7 @@ struct PhotoServiceOrganizeTests {
         #expect(store.calls.count == 1)
     }
 
-    @Test func importPassesThroughForExistingFile() async throws {
+    @Test func `import passes through for existing file`() async throws {
         let tmp = FileManager.default.temporaryDirectory
             .appendingPathComponent("photos-automation-test-\(UUID().uuidString).png")
         try Data([0x89, 0x50]).write(to: tmp)
@@ -191,7 +191,7 @@ struct PhotoServiceOrganizeTests {
 }
 
 struct AvailableURLTests {
-    @Test func dedupesExistingFilenames() throws {
+    @Test func `dedupes existing filenames`() throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("photos-automation-dedupe-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -216,7 +216,7 @@ struct WriteAllOrNothingTests {
         return dir
     }
 
-    @Test func returnsEveryWrittenURLInOrder() async throws {
+    @Test func `returns every written URL in order`() async throws {
         let dir = try makeDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         let urls = try await PhotoKitStore.writeAllOrNothing(["a", "b"]) { name in
@@ -227,7 +227,7 @@ struct WriteAllOrNothingTests {
         #expect(urls.map(\.lastPathComponent) == ["a", "b"])
     }
 
-    @Test func removesEarlierFilesWhenALaterWriteFails() async throws {
+    @Test func `removes earlier files when a later write fails`() async throws {
         let dir = try makeDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         try Data([9]).write(to: dir.appendingPathComponent("preexisting"))

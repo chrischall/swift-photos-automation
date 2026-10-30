@@ -9,7 +9,7 @@ Swift 6 library exposing the Apple Photos library on macOS through one `PhotoSer
 - **PhotoKit** (`PhotoKitStore: PhotoLibraryStore`) — structured search, metadata, export, in-memory JPEG renditions, albums, favorites, import.
 - **AppleScript** (`NSAppleScriptRunner: AppleScriptRunner`) — only what PhotoKit cannot do: writing titles/descriptions/keywords and free-text search (`search for`).
 
-Target: macOS 14+. Zero external dependencies. Strict concurrency is on (all public types are `Sendable`).
+Target: macOS 26+, swift-tools-version 6.4, Swift 6 language mode. Zero external dependencies. Strict concurrency is on (all public types are `Sendable`; no `@unchecked Sendable` in library code — use `Synchronization.Mutex`).
 
 ## Commands
 
@@ -35,12 +35,13 @@ swiftformat . --lint                                 # lint (config in .swiftfor
 
 ### Non-obvious constraints to respect
 
-1. **Asset IDs**: PhotoKit `localIdentifier` == AppleScript `media item id`. The integration test's title round-trip (`metadataRoundTrip`, AppleScript-gated) is the canary; if it breaks on a macOS update, add id normalization in the script builders.
+1. **Asset IDs**: PhotoKit `localIdentifier` == AppleScript `media item id`. The integration test's title round-trip (`metadata round-trip via AppleScript`, AppleScript-gated) is the canary; if it breaks on a macOS update, add id normalization in the script builders.
 2. **Every string interpolated into AppleScript must go through `PhotoService.escapeForAppleScript`** (backslashes before quotes).
 3. **`NSAppleScript` is non-reentrant inside test bundles** — any suite that runs it live carries `.serialized` and the `PHOTOS_AUTOMATION_APPLESCRIPT` gate on top of the base integration gate (error -1751 flakes otherwise).
 4. **No deletion of assets or albums, ever** — PhotoKit deletion of either always shows a blocking confirmation dialog. The integration suite therefore deletes nothing it creates: the imported 1×1 test PNG and the uniquely-named `PhotosAutomationTests-*` album both stay in the library (documented in README; remove by hand).
-5. **`performChanges` closures are `@Sendable` and run on an arbitrary queue** — fetch PH objects *inside* the closure; smuggle results out via `Locked<T>`, never captured vars.
+5. **`performChanges` closures are `@Sendable` and run on an arbitrary queue** — fetch PH objects *inside* the closure; smuggle results out via `Locked<T>` (a `Mutex` box; mutate with `withLock`), never captured vars.
 6. **Metadata hydration is best-effort**: `asset(id:)` swallows AppleScript failures and leaves title/description/keywords `nil`. Metadata *writes* propagate `AppleScriptError` — consumers catch both error types.
+7. **Test names are raw identifiers** (``@Test func `does a thing`()``) — `.swiftformat` targets Swift 6.4, and swiftformat rewrites camelCase test names this way.
 
 <!-- pr-workflow:v3 -->
 ## Pull requests & release notes

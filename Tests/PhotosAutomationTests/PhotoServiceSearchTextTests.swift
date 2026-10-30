@@ -3,21 +3,21 @@ import Foundation
 import Testing
 
 struct PhotoServiceSearchTextTests {
-    @Test func rejectsEmptyQuery() async {
+    @Test func `rejects empty query`() async {
         let service = PhotoService(store: FakePhotoLibraryStore(), runner: FakeAppleScriptRunner())
         await #expect(throws: PhotoServiceError.invalidInput("query must not be empty")) {
             _ = try await service.searchText("   ")
         }
     }
 
-    @Test func rejectsNonPositiveLimit() async {
+    @Test func `rejects non positive limit`() async {
         let service = PhotoService(store: FakePhotoLibraryStore(), runner: FakeAppleScriptRunner())
         await #expect(throws: PhotoServiceError.invalidInput("limit must be positive")) {
             _ = try await service.searchText("beach", limit: 0)
         }
     }
 
-    @Test func hydratesIdsInScriptOrder() async throws {
+    @Test func `hydrates ids in script order`() async throws {
         let store = FakePhotoLibraryStore()
         store.assetsById = ["B": PhotoAsset(id: "B"), "A": PhotoAsset(id: "A")]
         let runner = FakeAppleScriptRunner()
@@ -27,7 +27,7 @@ struct PhotoServiceSearchTextTests {
         #expect(results.map(\.id) == ["B", "A"])
     }
 
-    @Test func unknownIdsAreOmitted() async throws {
+    @Test func `unknown ids are omitted`() async throws {
         let store = FakePhotoLibraryStore()
         store.assetsById = ["A": PhotoAsset(id: "A")]
         let runner = FakeAppleScriptRunner()
@@ -37,7 +37,7 @@ struct PhotoServiceSearchTextTests {
         #expect(results.map(\.id) == ["A"])
     }
 
-    @Test func emptyScriptOutputReturnsEmptyWithoutStoreCall() async throws {
+    @Test func `empty script output returns empty without store call`() async throws {
         let store = FakePhotoLibraryStore()
         let runner = FakeAppleScriptRunner()
         runner.queue("")
@@ -47,7 +47,7 @@ struct PhotoServiceSearchTextTests {
         #expect(store.calls.isEmpty)
     }
 
-    @Test func scriptEmbedsEscapedQueryAndLimit() async throws {
+    @Test func `script embeds escaped query and limit`() async throws {
         let runner = FakeAppleScriptRunner()
         let service = PhotoService(store: FakePhotoLibraryStore(), runner: runner)
         _ = try await service.searchText(#"kids "party""#, limit: 7)
@@ -56,7 +56,7 @@ struct PhotoServiceSearchTextTests {
         #expect(runner.calls[0].contains("if n > 7 then set n to 7"))
     }
 
-    @Test func parseIdLinesTrimsAndSkipsBlanks() {
+    @Test func `parse id lines trims and skips blanks`() {
         #expect(PhotoService.parseIdLines(" A \n\nB\n") == ["A", "B"])
     }
 }

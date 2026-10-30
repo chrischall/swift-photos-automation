@@ -2,7 +2,7 @@
 # Run:  swiftformat .
 # Lint: swiftformat . --lint
 
---swiftversion 6.0
+--swiftversion 6.4
 --maxwidth 120
 
 # Prefer `case let .foo(x)` over `case .foo(let x)`.

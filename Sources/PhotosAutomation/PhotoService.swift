@@ -12,15 +12,15 @@ import UniformTypeIdentifiers
 /// The service is a value type with no mutable state: construct once and
 /// share freely across concurrent callers.
 public struct PhotoService: Sendable {
-    private let store: PhotoLibraryStore
-    private let runner: AppleScriptRunner
+    private let store: any PhotoLibraryStore
+    private let runner: any AppleScriptRunner
 
     /// Creates a service.
     ///
     /// - Parameters:
     ///   - store: PhotoKit access. Defaults to ``PhotoKitStore``.
     ///   - runner: AppleScript access. Defaults to ``NSAppleScriptRunner``.
-    public init(store: PhotoLibraryStore = PhotoKitStore(), runner: AppleScriptRunner = NSAppleScriptRunner()) {
+    public init(store: any PhotoLibraryStore = PhotoKitStore(), runner: any AppleScriptRunner = NSAppleScriptRunner()) {
         self.store = store
         self.runner = runner
     }
@@ -40,7 +40,7 @@ public struct PhotoService: Sendable {
         sourceAlbumId: String,
         targetAlbumId: String,
         dryRun: Bool = false,
-        cleanPhantoms: Bool = false
+        cleanPhantoms: Bool = false,
     ) async throws -> PhotoCopyResult {
         try await copyAlbum(sourceAlbumId: sourceAlbumId, targetAlbumId: targetAlbumId,
                             dryRun: dryRun, cleanPhantoms: cleanPhantoms, progress: nil)
@@ -51,7 +51,7 @@ public struct PhotoService: Sendable {
         targetAlbumId: String,
         dryRun: Bool = false,
         cleanPhantoms: Bool = false,
-        progress: (@Sendable (PhotoCopyProgress) -> Void)?
+        progress: (@Sendable (PhotoCopyProgress) -> Void)?,
     ) async throws -> PhotoCopyResult {
         let sourceAlbumId = try Self.validateNonEmpty(sourceAlbumId, name: "sourceAlbumId")
         let targetAlbumId = try Self.validateNonEmpty(targetAlbumId, name: "targetAlbumId")
@@ -60,7 +60,7 @@ public struct PhotoService: Sendable {
             targetAlbumId: targetAlbumId,
             dryRun: dryRun,
             cleanPhantoms: cleanPhantoms,
-            progress: progress
+            progress: progress,
         )
     }
 
@@ -102,7 +102,7 @@ public struct PhotoService: Sendable {
     /// Stable identity for matching a re-imported copy to its shared source.
     static func copyIdentity(_ asset: PhotoAsset) -> String? {
         guard let filename = asset.originalFilename, let creationDate = asset.creationDate else { return nil }
-        let name = URL(fileURLWithPath: filename).deletingPathExtension().lastPathComponent
+        let name = URL(filePath: filename).deletingPathExtension().lastPathComponent
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
         return "\(name)|\(creationDate.timeIntervalSince1970)"
     }
@@ -174,7 +174,7 @@ public struct PhotoService: Sendable {
 
     /// Returns the trimmed value, or throws `.invalidInput` when blank.
     @discardableResult
-    static func validateNonEmpty(_ value: String, name: String) throws -> String {
+    static func validateNonEmpty(_ value: String, name: String) throws(PhotoServiceError) -> String {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             throw PhotoServiceError.invalidInput("\(name) must not be empty")
@@ -183,7 +183,7 @@ public struct PhotoService: Sendable {
     }
 
     /// Throws `.invalidInput` when `limit` is not positive.
-    static func validatePositive(_ limit: Int) throws {
+    static func validatePositive(_ limit: Int) throws(PhotoServiceError) {
         guard limit > 0 else {
             throw PhotoServiceError.invalidInput("limit must be positive")
         }
@@ -528,7 +528,7 @@ public struct PhotoService: Sendable {
 
     /// Validates an id array: non-empty, no blank members.
     /// - Returns: The ids, trimmed.
-    static func validateIds(_ ids: [String]) throws -> [String] {
+    static func validateIds(_ ids: [String]) throws(PhotoServiceError) -> [String] {
         guard !ids.isEmpty else {
             throw PhotoServiceError.invalidInput("ids must not be empty")
         }
@@ -547,7 +547,7 @@ public struct PhotoService: Sendable {
 
     /// Throws `.invalidInput` unless `url` is an existing regular file
     /// whose extension maps to an image or video type.
-    static func validateImportable(_ url: URL) throws {
+    static func validateImportable(_ url: URL) throws(PhotoServiceError) {
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
             throw PhotoServiceError.invalidInput("file does not exist: \(url.path)")

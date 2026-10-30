@@ -27,7 +27,7 @@ public struct PhotoSearchCriteria: Equatable, Sendable {
         mediaType: PhotoMediaType? = nil,
         favoritesOnly: Bool = false,
         albumId: String? = nil,
-        limit: Int = 50
+        limit: Int = 50,
     ) {
         self.startDate = startDate
         self.endDate = endDate
