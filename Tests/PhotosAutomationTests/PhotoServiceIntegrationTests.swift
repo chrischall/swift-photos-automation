@@ -213,7 +213,7 @@ struct PhotoServiceIntegrationTests {
         let asset = try await service.asset(id: imported[0].id)
         #expect(asset.isLivePhoto == false)
         #expect(asset.originalResource == .compressed)
-        await #expect(throws: PhotoServiceError.invalidInput("asset \(asset.id) is not a Live Photo")) {
+        await #expect(throws: PhotosError.service(.invalidInput("asset \(asset.id) is not a Live Photo"))) {
             try await service.setLivePhotoPlayback(id: asset.id, enabled: false)
         }
 

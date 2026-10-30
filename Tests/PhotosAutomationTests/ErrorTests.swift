@@ -69,3 +69,43 @@ struct ValidatorTypedThrowsTests {
         }
     }
 }
+
+struct PhotosErrorTests {
+    @Test func `wraps both underlying error types`() {
+        #expect(PhotosError.appleScript(.runtime("x")).appleScriptError == .runtime("x"))
+        #expect(PhotosError.appleScript(.runtime("x")).serviceError == nil)
+        #expect(PhotosError.service(.permissionDenied).serviceError == .permissionDenied)
+        #expect(PhotosError.service(.permissionDenied).appleScriptError == nil)
+        #expect(PhotosError.cancelled.serviceError == nil)
+        #expect(PhotosError.cancelled.appleScriptError == nil)
+    }
+
+    @Test func `description is the wrapped error's`() {
+        #expect(PhotosError.appleScript(.compile("bad")).errorDescription
+            == AppleScriptError.compile("bad").errorDescription)
+        #expect(PhotosError.service(.notFound("asset X")).errorDescription
+            == PhotoServiceError.notFound("asset X").errorDescription)
+        #expect(PhotosError.cancelled.errorDescription == "The Photos operation was cancelled")
+    }
+
+    @Test func `localizedDescription is unchanged for wrapped errors`() {
+        let wrapped: any Error = PhotosError.service(.invalidInput("id must not be empty"))
+        #expect(wrapped.localizedDescription == "Invalid input: id must not be empty")
+    }
+
+    @Test func equatable() {
+        #expect(PhotosError.appleScript(.runtime("x")) == .appleScript(.runtime("x")))
+        #expect(PhotosError.appleScript(.runtime("x")) != .service(.operationFailed("x")))
+    }
+
+    @Test func `normalizes any error`() {
+        #expect(PhotosError(PhotoServiceError.notFound("a")) == .service(.notFound("a")))
+        #expect(PhotosError(AppleScriptError.runtime("r")) == .appleScript(.runtime("r")))
+        #expect(PhotosError(PhotosError.cancelled) == .cancelled)
+        #expect(PhotosError(CancellationError()) == .cancelled)
+        struct Opaque: LocalizedError {
+            var errorDescription: String? { "disk on fire" }
+        }
+        #expect(PhotosError(Opaque()) == .service(.operationFailed("disk on fire")))
+    }
+}

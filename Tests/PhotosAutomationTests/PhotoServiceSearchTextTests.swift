@@ -5,14 +5,14 @@ import Testing
 struct PhotoServiceSearchTextTests {
     @Test func `rejects empty query`() async {
         let service = PhotoService(store: FakePhotoLibraryStore(), runner: FakeAppleScriptRunner())
-        await #expect(throws: PhotoServiceError.invalidInput("query must not be empty")) {
+        await #expect(throws: PhotosError.service(.invalidInput("query must not be empty"))) {
             _ = try await service.searchText("   ")
         }
     }
 
     @Test func `rejects non positive limit`() async {
         let service = PhotoService(store: FakePhotoLibraryStore(), runner: FakeAppleScriptRunner())
-        await #expect(throws: PhotoServiceError.invalidInput("limit must be positive")) {
+        await #expect(throws: PhotosError.service(.invalidInput("limit must be positive"))) {
             _ = try await service.searchText("beach", limit: 0)
         }
     }

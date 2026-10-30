@@ -40,7 +40,7 @@ struct PhotoServicePhotoKitMetadataTests {
     @Test(arguments: [-1, 6])
     func `a rating outside 0 to 5 is refused before the store`(rating: Int) async {
         let (service, store, _) = make()
-        await #expect(throws: PhotoServiceError.invalidInput("rating must be 0–5 (0 clears it)")) {
+        await #expect(throws: PhotosError.service(.invalidInput("rating must be 0–5 (0 clears it)"))) {
             try await service.setRating(id: "A", rating)
         }
         #expect(store.calls.isEmpty)
@@ -56,7 +56,7 @@ struct PhotoServicePhotoKitMetadataTests {
     @Test func `store write errors propagate`() async {
         let (service, store, _) = make()
         store.errorToThrow = PhotoServiceError.notFound("asset(s) A")
-        await #expect(throws: PhotoServiceError.notFound("asset(s) A")) {
+        await #expect(throws: PhotosError.service(.notFound("asset(s) A"))) {
             try await service.setKeywords(id: "A", ["x"])
         }
     }

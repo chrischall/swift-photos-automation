@@ -44,13 +44,13 @@ struct PhotoServiceReadTests {
     }
 
     @Test func `list assets rejects non positive limit`() async {
-        await #expect(throws: PhotoServiceError.invalidInput("limit must be positive")) {
+        await #expect(throws: PhotosError.service(.invalidInput("limit must be positive"))) {
             _ = try await self.makeService().listAssets(limit: 0)
         }
     }
 
     @Test func `list assets rejects empty album id`() async {
-        await #expect(throws: PhotoServiceError.invalidInput("albumId must not be empty")) {
+        await #expect(throws: PhotosError.service(.invalidInput("albumId must not be empty"))) {
             _ = try await self.makeService().listAssets(albumId: "  ")
         }
     }
@@ -67,13 +67,13 @@ struct PhotoServiceReadTests {
     }
 
     @Test func `search rejects non positive limit`() async {
-        await #expect(throws: PhotoServiceError.invalidInput("limit must be positive")) {
+        await #expect(throws: PhotosError.service(.invalidInput("limit must be positive"))) {
             _ = try await self.makeService().search(criteria: PhotoSearchCriteria(limit: -1))
         }
     }
 
     @Test func `search rejects blank album id`() async {
-        await #expect(throws: PhotoServiceError.invalidInput("albumId must not be empty")) {
+        await #expect(throws: PhotosError.service(.invalidInput("albumId must not be empty"))) {
             _ = try await self.makeService().search(criteria: PhotoSearchCriteria(albumId: "  "))
         }
     }
@@ -81,13 +81,13 @@ struct PhotoServiceReadTests {
     // MARK: asset(id:)
 
     @Test func `asset rejects empty id`() async {
-        await #expect(throws: PhotoServiceError.invalidInput("id must not be empty")) {
+        await #expect(throws: PhotosError.service(.invalidInput("id must not be empty"))) {
             _ = try await self.makeService().asset(id: "")
         }
     }
 
     @Test func `asset not found throws`() async {
-        await #expect(throws: PhotoServiceError.notFound("asset missing-id")) {
+        await #expect(throws: PhotosError.service(.notFound("asset missing-id"))) {
             _ = try await self.makeService().asset(id: "missing-id")
         }
     }

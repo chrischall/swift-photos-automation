@@ -18,19 +18,19 @@ struct PhotoServiceOrganizeTests {
     }
 
     @Test func `create album rejects empty title`() async {
-        await #expect(throws: PhotoServiceError.invalidInput("title must not be empty")) {
+        await #expect(throws: PhotosError.service(.invalidInput("title must not be empty"))) {
             _ = try await self.service.createAlbum(title: "")
         }
     }
 
     @Test func `add rejects empty ids`() async {
-        await #expect(throws: PhotoServiceError.invalidInput("ids must not be empty")) {
+        await #expect(throws: PhotosError.service(.invalidInput("ids must not be empty"))) {
             try await self.service.add(ids: [], toAlbum: "alb")
         }
     }
 
     @Test func `add rejects blank member`() async {
-        await #expect(throws: PhotoServiceError.invalidInput("ids must not contain blank values")) {
+        await #expect(throws: PhotosError.service(.invalidInput("ids must not contain blank values"))) {
             try await self.service.add(ids: ["ok", " "], toAlbum: "alb")
         }
     }
@@ -75,7 +75,7 @@ struct PhotoServiceOrganizeTests {
     }
 
     @Test func `export rejects empty ids`() async {
-        await #expect(throws: PhotoServiceError.invalidInput("ids must not be empty")) {
+        await #expect(throws: PhotosError.service(.invalidInput("ids must not be empty"))) {
             _ = try await self.service.exportOriginals(ids: [], to: URL(fileURLWithPath: "/tmp"))
         }
     }
@@ -95,7 +95,7 @@ struct PhotoServiceOrganizeTests {
     }
 
     @Test func `image data rejects non positive dimension`() async {
-        await #expect(throws: PhotoServiceError.invalidInput("maxDimension must be positive")) {
+        await #expect(throws: PhotosError.service(.invalidInput("maxDimension must be positive"))) {
             _ = try await self.service.imageData(id: "a", maxDimension: 0)
         }
     }
@@ -126,14 +126,14 @@ struct PhotoServiceOrganizeTests {
     // MARK: import
 
     @Test func `import rejects empty URLs`() async {
-        await #expect(throws: PhotoServiceError.invalidInput("urls must not be empty")) {
+        await #expect(throws: PhotosError.service(.invalidInput("urls must not be empty"))) {
             _ = try await self.service.importFiles(urls: [])
         }
     }
 
     @Test func `import rejects missing file`() async {
         let missing = URL(fileURLWithPath: "/nonexistent/nope.png")
-        await #expect(throws: PhotoServiceError.invalidInput("file does not exist: /nonexistent/nope.png")) {
+        await #expect(throws: PhotosError.service(.invalidInput("file does not exist: /nonexistent/nope.png"))) {
             _ = try await self.service.importFiles(urls: [missing])
         }
     }
@@ -143,7 +143,7 @@ struct PhotoServiceOrganizeTests {
             .appendingPathComponent("photos-automation-dir-\(UUID().uuidString).png")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
-        await #expect(throws: PhotoServiceError.invalidInput("not a regular file: \(dir.path)")) {
+        await #expect(throws: PhotosError.service(.invalidInput("not a regular file: \(dir.path)"))) {
             _ = try await self.service.importFiles(urls: [dir])
         }
         #expect(store.calls.isEmpty)
@@ -161,7 +161,7 @@ struct PhotoServiceOrganizeTests {
             try? FileManager.default.removeItem(at: bad)
         }
         await #expect(
-            throws: PhotoServiceError.invalidInput("unsupported file type (not an image or video): \(bad.path)"),
+            throws: PhotosError.service(.invalidInput("unsupported file type (not an image or video): \(bad.path)")),
         ) {
             _ = try await self.service.importFiles(urls: [good, bad])
         }

@@ -24,7 +24,7 @@ struct PhotoServiceMacOS27Tests {
 
     @Test func `live photo playback refuses a blank id before the store`() async {
         let (service, store, _) = make()
-        await #expect(throws: PhotoServiceError.invalidInput("id must not be empty")) {
+        await #expect(throws: PhotosError.service(.invalidInput("id must not be empty"))) {
             try await service.setLivePhotoPlayback(id: "  ", enabled: false)
         }
         #expect(store.calls.isEmpty)
@@ -32,7 +32,9 @@ struct PhotoServiceMacOS27Tests {
 
     @Test func `a store without live photo support throws`() async {
         let service = PhotoService(store: IsolationTests.ThreadRecordingStore(), runner: FakeAppleScriptRunner())
-        await #expect(throws: PhotoServiceError.operationFailed("this Photos store cannot change Live Photo playback")) {
+        await #expect(
+            throws: PhotosError.service(.operationFailed("this Photos store cannot change Live Photo playback")),
+        ) {
             try await service.setLivePhotoPlayback(id: "A", enabled: false)
         }
     }
@@ -122,7 +124,7 @@ struct PhotoServiceMacOS27Tests {
         let (service, store, _) = make()
         store.errorToThrow = PhotoServiceError.notFound("album s")
         let parent = ProgressManager(totalCount: 1)
-        await #expect(throws: PhotoServiceError.notFound("album s")) {
+        await #expect(throws: PhotosError.service(.notFound("album s"))) {
             _ = try await service.copyAlbum(sourceAlbumId: "s", targetAlbumId: "t",
                                             subprogress: parent.subprogress(assigningCount: 1))
         }
