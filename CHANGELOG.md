@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/chrischall/swift-photos-automation/compare/v0.4.0...v1.0.0) (2026-10-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* require macOS 26 ([#36](https://github.com/chrischall/swift-photos-automation/issues/36))
+
+### Features
+
+* require macOS 26 ([#36](https://github.com/chrischall/swift-photos-automation/issues/36)) ([a84ab0f](https://github.com/chrischall/swift-photos-automation/commit/a84ab0fdc4ca9a39bdcde6c726af855d07a43706))
+
 ## [0.4.0](https://github.com/chrischall/swift-photos-automation/compare/v0.3.0...v0.4.0) (2026-10-09)
 
 
