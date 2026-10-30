@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.0](https://github.com/chrischall/swift-photos-automation/compare/v1.1.0...v1.2.0) (2026-10-30)
+
+
+### Features
+
+* Live Photo playback, original-resource reads and Subprogress copy progress on Swift 6.4 upcoming features ([#44](https://github.com/chrischall/swift-photos-automation/issues/44)) ([93b453f](https://github.com/chrischall/swift-photos-automation/commit/93b453f3bba1b9c402a89f18bb8b52f907c53377))
+* read and write descriptions, keywords and ratings through PhotoKit ([#41](https://github.com/chrischall/swift-photos-automation/issues/41)) ([b2576d8](https://github.com/chrischall/swift-photos-automation/commit/b2576d81d66f919a07e3b69dac94a95194216903))
+
+
+### Refactor
+
+* mark the copyAlbum convenience overloads [@concurrent](https://github.com/concurrent) ([#46](https://github.com/chrischall/swift-photos-automation/issues/46)) ([238049c](https://github.com/chrischall/swift-photos-automation/commit/238049c6c1bd29ccbd43262ce922c127e5007fb0)), closes [#45](https://github.com/chrischall/swift-photos-automation/issues/45)
+
 ## [1.1.0](https://github.com/chrischall/swift-photos-automation/compare/v1.0.0...v1.1.0) (2026-10-30)
 
 
