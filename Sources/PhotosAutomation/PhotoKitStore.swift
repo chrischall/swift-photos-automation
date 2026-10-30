@@ -151,7 +151,7 @@ public struct PhotoKitStore: PhotoLibraryStore {
         let primary = resources.first { $0.type == .photo || $0.type == .video } ?? resources.first
         return PhotoAsset(
             id: asset.localIdentifier,
-            originalFilename: primary?.filename,
+            originalFilename: primary.map(Self.filename(of:)),
             creationDate: asset.creationDate,
             mediaType: Self.mediaType(from: asset.mediaType),
             isFavorite: asset.isFavorite,
