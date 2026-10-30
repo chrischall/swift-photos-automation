@@ -23,7 +23,11 @@ public protocol AppleScriptRunner: Sendable {
     ///   the script executes an `error "…"` statement.
     ///   ``AppleScriptError/compile(_:)`` when `source` cannot be
     ///   compiled into an executable script.
-    func run(source: String) async throws -> String
+    ///
+    ///   The error type is fixed: a conformance must map every failure to
+    ///   an ``AppleScriptError`` case, so ``PhotoService`` can surface it
+    ///   as ``PhotosError/appleScript(_:)``.
+    func run(source: String) async throws(AppleScriptError) -> String
 }
 
 /// Errors surfaced by an ``AppleScriptRunner`` execution.

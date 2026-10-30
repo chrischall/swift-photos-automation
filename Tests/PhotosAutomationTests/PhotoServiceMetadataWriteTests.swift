@@ -15,7 +15,7 @@ struct PhotoServiceMetadataWriteTests {
     }
 
     @Test func `set title rejects empty id`() async {
-        await #expect(throws: PhotoServiceError.invalidInput("id must not be empty")) {
+        await #expect(throws: PhotosError.service(.invalidInput("id must not be empty"))) {
             try await self.make().setTitle(id: " ", "x")
         }
     }
@@ -23,7 +23,7 @@ struct PhotoServiceMetadataWriteTests {
     @Test func `apple script error propagates`() async {
         let runner = FakeAppleScriptRunner()
         runner.queueError("no permission")
-        await #expect(throws: AppleScriptError.runtime("no permission")) {
+        await #expect(throws: PhotosError.appleScript(.runtime("no permission"))) {
             try await self.make(runner).setTitle(id: "A", "x")
         }
     }

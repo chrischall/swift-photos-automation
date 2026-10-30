@@ -107,7 +107,7 @@ struct PhotoServicePathConfinementTests {
         let box = try makeSandbox()
         defer { try? FileManager.default.removeItem(at: box.base) }
         await #expect(
-            throws: PhotoServiceError.invalidInput("directory is outside the allowed root: \(box.outside.path)"),
+            throws: PhotosError.service(.invalidInput("directory is outside the allowed root: \(box.outside.path)")),
         ) {
             _ = try await self.service.exportOriginals(ids: ["a"], to: box.outside, allowedRoot: box.root)
         }
@@ -138,7 +138,7 @@ struct PhotoServicePathConfinementTests {
         try writePNG(inside)
         try writePNG(outside)
         await #expect(
-            throws: PhotoServiceError.invalidInput("file is outside the allowed root: \(outside.path)"),
+            throws: PhotosError.service(.invalidInput("file is outside the allowed root: \(outside.path)")),
         ) {
             _ = try await self.service.importFiles(urls: [inside, outside], allowedRoot: box.root)
         }
@@ -152,7 +152,7 @@ struct PhotoServicePathConfinementTests {
         // nothing about whether the outside path exists.
         let ghost = box.outside.appendingPathComponent("ghost.png")
         await #expect(
-            throws: PhotoServiceError.invalidInput("file is outside the allowed root: \(ghost.path)"),
+            throws: PhotosError.service(.invalidInput("file is outside the allowed root: \(ghost.path)")),
         ) {
             _ = try await self.service.importFiles(urls: [ghost], allowedRoot: box.root)
         }
@@ -166,7 +166,7 @@ struct PhotoServicePathConfinementTests {
         let link = box.root.appendingPathComponent("looks-local.png")
         try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
         await #expect(
-            throws: PhotoServiceError.invalidInput("file is outside the allowed root: \(link.path)"),
+            throws: PhotosError.service(.invalidInput("file is outside the allowed root: \(link.path)")),
         ) {
             _ = try await self.service.importFiles(urls: [link], allowedRoot: box.root)
         }

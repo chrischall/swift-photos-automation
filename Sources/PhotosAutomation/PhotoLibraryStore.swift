@@ -6,6 +6,9 @@ public import Foundation
 /// Production implementation is ``PhotoKitStore``; tests inject a fake.
 /// Implementations throw ``PhotoServiceError`` (`permissionDenied`,
 /// `notFound`, `operationFailed`) — they never throw ``AppleScriptError``.
+/// ``PhotoService`` wraps it as ``PhotosError/service(_:)``; any other
+/// error type is surfaced as ``PhotoServiceError/operationFailed(_:)``
+/// (and `CancellationError` as ``PhotosError/cancelled``).
 public protocol PhotoLibraryStore: Sendable {
     /// All user-created albums.
     func listAlbums() async throws -> [PhotoAlbum]

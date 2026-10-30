@@ -49,10 +49,15 @@ public struct NSAppleScriptRunner: AppleScriptRunner {
     /// passes, so the main-thread invariant documented above is
     /// established in one place — and can be asserted by tests without
     /// needing Photos.app or an Automation permission grant.
-    static func onMainThread<T: Sendable>(
-        _ body: @MainActor @Sendable () throws -> T,
-    ) async rethrows -> T {
-        try await MainActor.run(body: body)
+    ///
+    /// Typed throws: `body`'s error type is preserved across the hop.
+    /// `MainActor.run` only `rethrows` (erasing it to `any Error`), so the
+    /// outcome crosses back as a `Result`.
+    static func onMainThread<T: Sendable, E: Error>(
+        _ body: @MainActor @Sendable () throws(E) -> T,
+    ) async throws(E) -> T {
+        let result = await MainActor.run { Result { () throws(E) -> T in try body() } }
+        return try result.get()
     }
 
     /// Compiles and executes `source`, returning the scalar result as a
@@ -64,8 +69,8 @@ public struct NSAppleScriptRunner: AppleScriptRunner {
     /// - Throws: ``AppleScriptError/compile(_:)`` when the source cannot
     ///   be constructed; ``AppleScriptError/runtime(_:)`` when
     ///   AppleScript reports an error at execution time.
-    public func run(source: String) async throws -> String {
-        try await Self.onMainThread { () throws -> String in
+    public func run(source: String) async throws(AppleScriptError) -> String {
+        try await Self.onMainThread { () throws(AppleScriptError) -> String in
             guard let script = NSAppleScript(source: source) else {
                 throw AppleScriptError.compile("Failed to construct NSAppleScript")
             }

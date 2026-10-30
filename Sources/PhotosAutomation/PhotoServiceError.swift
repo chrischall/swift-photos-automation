@@ -1,11 +1,12 @@
 public import Foundation
 
-/// Domain errors thrown by ``PhotoService`` and ``PhotoLibraryStore``
-/// implementations.
+/// Domain errors: validation failures and ``PhotoLibraryStore`` (PhotoKit)
+/// failures.
 ///
-/// AppleScript transport failures propagate separately as
-/// ``AppleScriptError`` — catch both when calling metadata-write or
-/// text-search operations.
+/// ``PhotoService`` never throws this bare — it arrives wrapped as
+/// ``PhotosError/service(_:)``, alongside ``PhotosError/appleScript(_:)``
+/// for AppleScript transport failures. ``PhotoLibraryStore``
+/// implementations throw it directly.
 public enum PhotoServiceError: Error, Equatable, Sendable {
     /// The caller passed an argument that fails validation (empty id,
     /// non-positive limit, missing file). The associated value names the

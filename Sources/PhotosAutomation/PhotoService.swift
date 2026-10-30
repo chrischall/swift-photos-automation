@@ -25,11 +25,25 @@ public struct PhotoService: Sendable {
         self.runner = runner
     }
 
+    /// Runs a public operation's body, normalizing whatever it throws —
+    /// validation's ``PhotoServiceError``, the runner's
+    /// ``AppleScriptError``, or any error from the injected
+    /// ``PhotoLibraryStore`` — into the one public ``PhotosError``.
+    static func normalizing<T>(_ body: () async throws -> T) async throws(PhotosError) -> T {
+        do {
+            return try await body()
+        } catch {
+            throw PhotosError(error)
+        }
+    }
+
     // MARK: - Reads
 
     /// All user-created albums.
-    public func listAlbums() async throws -> [PhotoAlbum] {
-        try await store.listAlbums()
+    public func listAlbums() async throws(PhotosError) -> [PhotoAlbum] {
+        try await Self.normalizing {
+            try await store.listAlbums()
+        }
     }
 
     /// Copies an album into a regular local album. Cloud-shared members
@@ -41,7 +55,7 @@ public struct PhotoService: Sendable {
         targetAlbumId: String,
         dryRun: Bool = false,
         cleanPhantoms: Bool = false,
-    ) async throws -> PhotoCopyResult {
+    ) async throws(PhotosError) -> PhotoCopyResult {
         try await copyAlbum(sourceAlbumId: sourceAlbumId, targetAlbumId: targetAlbumId,
                             dryRun: dryRun, cleanPhantoms: cleanPhantoms, progress: nil)
     }
@@ -52,16 +66,18 @@ public struct PhotoService: Sendable {
         dryRun: Bool = false,
         cleanPhantoms: Bool = false,
         progress: (@Sendable (PhotoCopyProgress) -> Void)?,
-    ) async throws -> PhotoCopyResult {
-        let sourceAlbumId = try Self.validateNonEmpty(sourceAlbumId, name: "sourceAlbumId")
-        let targetAlbumId = try Self.validateNonEmpty(targetAlbumId, name: "targetAlbumId")
-        return try await store.copyAlbum(
-            sourceAlbumId: sourceAlbumId,
-            targetAlbumId: targetAlbumId,
-            dryRun: dryRun,
-            cleanPhantoms: cleanPhantoms,
-            progress: progress,
-        )
+    ) async throws(PhotosError) -> PhotoCopyResult {
+        try await Self.normalizing {
+            let sourceAlbumId = try Self.validateNonEmpty(sourceAlbumId, name: "sourceAlbumId")
+            let targetAlbumId = try Self.validateNonEmpty(targetAlbumId, name: "targetAlbumId")
+            return try await store.copyAlbum(
+                sourceAlbumId: sourceAlbumId,
+                targetAlbumId: targetAlbumId,
+                dryRun: dryRun,
+                cleanPhantoms: cleanPhantoms,
+                progress: progress,
+            )
+        }
     }
 
     /// ``copyAlbum(sourceAlbumId:targetAlbumId:dryRun:cleanPhantoms:progress:)``
@@ -80,7 +96,7 @@ public struct PhotoService: Sendable {
         dryRun: Bool = false,
         cleanPhantoms: Bool = false,
         subprogress: consuming Subprogress,
-    ) async throws -> PhotoCopyResult {
+    ) async throws(PhotosError) -> PhotoCopyResult {
         let manager = subprogress.start(totalCount: nil)
         return try await copyAlbum(
             sourceAlbumId: sourceAlbumId, targetAlbumId: targetAlbumId,
@@ -171,22 +187,26 @@ public struct PhotoService: Sendable {
     /// - Parameters:
     ///   - albumId: Restrict to this album's contents. `nil` = whole library.
     ///   - limit: Maximum results; must be positive.
-    public func listAssets(albumId: String? = nil, limit: Int = 50) async throws -> [PhotoAsset] {
-        try Self.validatePositive(limit)
-        if let albumId {
-            try Self.validateNonEmpty(albumId, name: "albumId")
+    public func listAssets(albumId: String? = nil, limit: Int = 50) async throws(PhotosError) -> [PhotoAsset] {
+        try await Self.normalizing {
+            try Self.validatePositive(limit)
+            if let albumId {
+                try Self.validateNonEmpty(albumId, name: "albumId")
+            }
+            return try await store.assets(matching: PhotoSearchCriteria(albumId: albumId, limit: limit))
         }
-        return try await store.assets(matching: PhotoSearchCriteria(albumId: albumId, limit: limit))
     }
 
     /// Assets matching structured criteria (dates, media type, favorites,
     /// album), newest first. For free-text search use ``searchText(_:limit:)``.
-    public func search(criteria: PhotoSearchCriteria) async throws -> [PhotoAsset] {
-        try Self.validatePositive(criteria.limit)
-        if let albumId = criteria.albumId {
-            try Self.validateNonEmpty(albumId, name: "albumId")
+    public func search(criteria: PhotoSearchCriteria) async throws(PhotosError) -> [PhotoAsset] {
+        try await Self.normalizing {
+            try Self.validatePositive(criteria.limit)
+            if let albumId = criteria.albumId {
+                try Self.validateNonEmpty(albumId, name: "albumId")
+            }
+            return try await store.assets(matching: criteria)
         }
-        return try await store.assets(matching: criteria)
     }
 
     /// A single asset with full metadata.
@@ -196,15 +216,17 @@ public struct PhotoService: Sendable {
     /// the title is read over AppleScript, best-effort: if Photos.app is
     /// unreachable or Automation permission is missing it stays `nil` rather
     /// than failing the lookup.
-    public func asset(id: String) async throws -> PhotoAsset {
-        let id = try Self.validateNonEmpty(id, name: "id")
-        guard var asset = try await store.asset(id: id) else {
-            throw PhotoServiceError.notFound("asset \(id)")
+    public func asset(id: String) async throws(PhotosError) -> PhotoAsset {
+        try await Self.normalizing {
+            let id = try Self.validateNonEmpty(id, name: "id")
+            guard var asset = try await store.asset(id: id) else {
+                throw PhotoServiceError.notFound("asset \(id)")
+            }
+            if let title = try? await runner.run(source: Self.titleScript(id: id)) {
+                asset.title = title.isEmpty ? nil : title
+            }
+            return asset
         }
-        if let title = try? await runner.run(source: Self.titleScript(id: id)) {
-            asset.title = title.isEmpty ? nil : title
-        }
-        return asset
     }
 
     // MARK: - Validation helpers
@@ -259,15 +281,17 @@ public struct PhotoService: Sendable {
     /// - Parameters:
     ///   - query: Search text; must not be blank.
     ///   - limit: Maximum results; must be positive.
-    public func searchText(_ query: String, limit: Int = 25) async throws -> [PhotoAsset] {
-        let query = try Self.validateNonEmpty(query, name: "query")
-        try Self.validatePositive(limit)
-        let output = try await runner.run(source: Self.searchScript(query: query, limit: limit))
-        let ids = Self.parseIdLines(output)
-        guard !ids.isEmpty else { return [] }
-        let assets = try await store.assets(ids: ids)
-        let byId = Dictionary(assets.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        return ids.compactMap { byId[$0] }
+    public func searchText(_ query: String, limit: Int = 25) async throws(PhotosError) -> [PhotoAsset] {
+        try await Self.normalizing {
+            let query = try Self.validateNonEmpty(query, name: "query")
+            try Self.validatePositive(limit)
+            let output = try await runner.run(source: Self.searchScript(query: query, limit: limit))
+            let ids = Self.parseIdLines(output)
+            guard !ids.isEmpty else { return [] }
+            let assets = try await store.assets(ids: ids)
+            let byId = Dictionary(assets.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            return ids.compactMap { byId[$0] }
+        }
     }
 
     /// Script running Photos' `search for` and returning matched ids,
@@ -302,41 +326,51 @@ public struct PhotoService: Sendable {
     ///
     /// PhotoKit cannot write titles — this goes through Photos.app via
     /// AppleScript, so it requires Automation permission for Photos.
-    /// - Throws: ``PhotoServiceError/invalidInput(_:)`` for a blank id;
-    ///   ``AppleScriptError`` when Photos.app rejects the script.
-    public func setTitle(id: String, _ title: String) async throws {
-        let id = try Self.validateNonEmpty(id, name: "id")
-        _ = try await runner.run(source: Self.setTitleScript(id: id, title: title))
+    /// - Throws: ``PhotosError/service(_:)`` wrapping
+    ///   ``PhotoServiceError/invalidInput(_:)`` for a blank id;
+    ///   ``PhotosError/appleScript(_:)`` when Photos.app rejects the script.
+    public func setTitle(id: String, _ title: String) async throws(PhotosError) {
+        try await Self.normalizing {
+            let id = try Self.validateNonEmpty(id, name: "id")
+            _ = try await runner.run(source: Self.setTitleScript(id: id, title: title))
+        }
     }
 
     /// Sets the asset's description/caption. Pass `""` to clear.
     ///
     /// Goes through PhotoKit (no Automation permission needed).
-    /// - Throws: ``PhotoServiceError`` for a blank or unknown id, or an
-    ///   asset whose metadata can't be edited.
-    public func setDescription(id: String, _ description: String) async throws {
-        let id = try Self.validateNonEmpty(id, name: "id")
-        try await store.setDescription(id: id, description)
+    /// - Throws: ``PhotosError/service(_:)`` for a blank or unknown id, or
+    ///   an asset whose metadata can't be edited.
+    public func setDescription(id: String, _ description: String) async throws(PhotosError) {
+        try await Self.normalizing {
+            let id = try Self.validateNonEmpty(id, name: "id")
+            try await store.setDescription(id: id, description)
+        }
     }
 
     /// Replaces the asset's keyword list. Pass `[]` to clear.
     ///
     /// Same transport and errors as ``setDescription(id:_:)``.
-    public func setKeywords(id: String, _ keywords: [String]) async throws {
-        let id = try Self.validateNonEmpty(id, name: "id")
-        try await store.setKeywords(id: id, keywords)
+    public func setKeywords(id: String, _ keywords: [String]) async throws(PhotosError) {
+        try await Self.normalizing {
+            let id = try Self.validateNonEmpty(id, name: "id")
+            try await store.setKeywords(id: id, keywords)
+        }
     }
 
     /// Sets the asset's star rating, 1–5. Pass `0` to clear it.
     ///
     /// Same transport and errors as ``setDescription(id:_:)``, plus
+    /// ``PhotosError/service(_:)`` wrapping
     /// ``PhotoServiceError/invalidInput(_:)`` for a rating outside 0–5.
-    public func setRating(id: String, _ stars: Int) async throws {
-        let id = try Self.validateNonEmpty(id, name: "id")
-        guard (0 ... 5).contains(stars) else {
-            throw PhotoServiceError.invalidInput("rating must be 0–5 (0 clears it)")
+    public func setRating(id: String, _ stars: Int) async throws(PhotosError) {
+        try await Self.normalizing {
+            let id = try Self.validateNonEmpty(id, name: "id")
+            guard (0 ... 5).contains(stars) else {
+                throw PhotoServiceError.invalidInput("rating must be 0–5 (0 clears it)")
+            }
+            try await store.setRating(id: id, stars)
         }
-        try await store.setRating(id: id, stars)
     }
 
     /// Turns a Live Photo's motion on or off. Off leaves it playing as a
@@ -344,9 +378,11 @@ public struct PhotoService: Sendable {
     ///
     /// Same transport and errors as ``setDescription(id:_:)``; an asset
     /// that is not a Live Photo is refused.
-    public func setLivePhotoPlayback(id: String, enabled: Bool) async throws {
-        let id = try Self.validateNonEmpty(id, name: "id")
-        try await store.setLivePhotoPlayback(id: id, enabled: enabled)
+    public func setLivePhotoPlayback(id: String, enabled: Bool) async throws(PhotosError) {
+        try await Self.normalizing {
+            let id = try Self.validateNonEmpty(id, name: "id")
+            try await store.setLivePhotoPlayback(id: id, enabled: enabled)
+        }
     }
 
     static func setTitleScript(id: String, title: String) -> String {
@@ -360,30 +396,38 @@ public struct PhotoService: Sendable {
     // MARK: - Organize, export, import
 
     /// Creates a new top-level album.
-    public func createAlbum(title: String) async throws -> PhotoAlbum {
-        let title = try Self.validateNonEmpty(title, name: "title")
-        return try await store.createAlbum(title: title)
+    public func createAlbum(title: String) async throws(PhotosError) -> PhotoAlbum {
+        try await Self.normalizing {
+            let title = try Self.validateNonEmpty(title, name: "title")
+            return try await store.createAlbum(title: title)
+        }
     }
 
     /// Adds assets to an album. Repeated ids are collapsed.
-    public func add(ids: [String], toAlbum albumId: String) async throws {
-        let ids = try Self.validateIds(ids)
-        let albumId = try Self.validateNonEmpty(albumId, name: "albumId")
-        try await store.add(ids: Self.uniqued(ids), toAlbum: albumId)
+    public func add(ids: [String], toAlbum albumId: String) async throws(PhotosError) {
+        try await Self.normalizing {
+            let ids = try Self.validateIds(ids)
+            let albumId = try Self.validateNonEmpty(albumId, name: "albumId")
+            try await store.add(ids: Self.uniqued(ids), toAlbum: albumId)
+        }
     }
 
     /// Removes assets from an album (the assets stay in the library).
     /// Repeated ids are collapsed.
-    public func remove(ids: [String], fromAlbum albumId: String) async throws {
-        let ids = try Self.validateIds(ids)
-        let albumId = try Self.validateNonEmpty(albumId, name: "albumId")
-        try await store.remove(ids: Self.uniqued(ids), fromAlbum: albumId)
+    public func remove(ids: [String], fromAlbum albumId: String) async throws(PhotosError) {
+        try await Self.normalizing {
+            let ids = try Self.validateIds(ids)
+            let albumId = try Self.validateNonEmpty(albumId, name: "albumId")
+            try await store.remove(ids: Self.uniqued(ids), fromAlbum: albumId)
+        }
     }
 
     /// Sets or clears the favorite flag on an asset.
-    public func setFavorite(id: String, _ isFavorite: Bool) async throws {
-        let id = try Self.validateNonEmpty(id, name: "id")
-        try await store.setFavorite(id: id, isFavorite)
+    public func setFavorite(id: String, _ isFavorite: Bool) async throws(PhotosError) {
+        try await Self.normalizing {
+            let id = try Self.validateNonEmpty(id, name: "id")
+            try await store.setFavorite(id: id, isFavorite)
+        }
     }
 
     /// Exports each asset's original file (photo or video) into
@@ -400,16 +444,21 @@ public struct PhotoService: Sendable {
     /// - Parameters:
     ///   - allowedRoot: When set, `directory` must resolve (symlinks and
     ///     `..` included) to `allowedRoot` or a path beneath it, or the call
-    ///     throws ``PhotoServiceError/invalidInput(_:)`` before touching the
+    ///     throws ``PhotosError/service(_:)`` wrapping
+    ///     ``PhotoServiceError/invalidInput(_:)`` before touching the
     ///     library. The check runs once, up front: it does not guard against
     ///     the filesystem being changed underneath it while the export runs.
     /// - Returns: URLs of the written files, in input order.
-    public func exportOriginals(ids: [String], to directory: URL, allowedRoot: URL? = nil) async throws -> [URL] {
-        let ids = try Self.validateIds(ids)
-        if let allowedRoot, !Self.isWithin(directory, root: allowedRoot) {
-            throw PhotoServiceError.invalidInput("directory is outside the allowed root: \(directory.path)")
+    public func exportOriginals(ids: [String], to directory: URL, allowedRoot: URL? = nil) async throws(PhotosError) -> [
+        URL
+    ] {
+        try await Self.normalizing {
+            let ids = try Self.validateIds(ids)
+            if let allowedRoot, !Self.isWithin(directory, root: allowedRoot) {
+                throw PhotoServiceError.invalidInput("directory is outside the allowed root: \(directory.path)")
+            }
+            return try await store.exportOriginals(ids: ids, to: directory)
         }
-        return try await store.exportOriginals(ids: ids, to: directory)
     }
 
     /// A JPEG rendition scaled to fit `maxDimension` pixels on the longest
@@ -419,12 +468,14 @@ public struct PhotoService: Sendable {
     /// `maxDimension` is clamped to ``maxRenditionDimension``; the store
     /// further clamps it to the asset's own size, so a rendition is never
     /// upscaled.
-    public func imageData(id: String, maxDimension: Int = 1024) async throws -> Data {
-        let id = try Self.validateNonEmpty(id, name: "id")
-        guard maxDimension > 0 else {
-            throw PhotoServiceError.invalidInput("maxDimension must be positive")
+    public func imageData(id: String, maxDimension: Int = 1024) async throws(PhotosError) -> Data {
+        try await Self.normalizing {
+            let id = try Self.validateNonEmpty(id, name: "id")
+            guard maxDimension > 0 else {
+                throw PhotoServiceError.invalidInput("maxDimension must be positive")
+            }
+            return try await store.imageData(id: id, maxDimension: min(maxDimension, Self.maxRenditionDimension))
         }
-        return try await store.imageData(id: id, maxDimension: min(maxDimension, Self.maxRenditionDimension))
     }
 
     /// Largest longest-side, in pixels, that ``imageData(id:maxDimension:)``
@@ -455,29 +506,34 @@ public struct PhotoService: Sendable {
     /// - Parameters:
     ///   - allowedRoot: When set, every url must resolve (symlinks and `..`
     ///     included) to a path beneath `allowedRoot`, or the call throws
+    ///     ``PhotosError/service(_:)`` wrapping
     ///     ``PhotoServiceError/invalidInput(_:)`` before any file is
     ///     inspected or the library is touched. The check runs once, up
     ///     front: it does not guard against the filesystem being changed
     ///     underneath it while the import runs.
     /// - Returns: The created assets.
-    public func importFiles(urls: [URL], albumId: String? = nil, allowedRoot: URL? = nil) async throws -> [PhotoAsset] {
-        guard !urls.isEmpty else {
-            throw PhotoServiceError.invalidInput("urls must not be empty")
-        }
-        if let allowedRoot {
-            // Before validateImportable, so a refused path is never stat'd
-            // and the error leaks nothing about what exists outside the root.
-            for url in urls where !Self.isWithin(url, root: allowedRoot) {
-                throw PhotoServiceError.invalidInput("file is outside the allowed root: \(url.path)")
+    public func importFiles(urls: [URL], albumId: String? = nil, allowedRoot: URL? = nil) async throws(PhotosError) -> [
+        PhotoAsset
+    ] {
+        try await Self.normalizing {
+            guard !urls.isEmpty else {
+                throw PhotoServiceError.invalidInput("urls must not be empty")
             }
+            if let allowedRoot {
+                // Before validateImportable, so a refused path is never stat'd
+                // and the error leaks nothing about what exists outside the root.
+                for url in urls where !Self.isWithin(url, root: allowedRoot) {
+                    throw PhotoServiceError.invalidInput("file is outside the allowed root: \(url.path)")
+                }
+            }
+            for url in urls {
+                try Self.validateImportable(url)
+            }
+            if let albumId {
+                _ = try Self.validateNonEmpty(albumId, name: "albumId")
+            }
+            return try await store.importFiles(urls: urls, toAlbum: albumId)
         }
-        for url in urls {
-            try Self.validateImportable(url)
-        }
-        if let albumId {
-            _ = try Self.validateNonEmpty(albumId, name: "albumId")
-        }
-        return try await store.importFiles(urls: urls, toAlbum: albumId)
     }
 
     /// Whether `url` resolves to `root` or a path beneath it.

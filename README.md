@@ -88,6 +88,47 @@ let imported = try await service.importFiles(
 Asset IDs are PhotoKit `localIdentifier`s, which Photos' AppleScript
 dictionary exposes identically — one ID works across both transports.
 
+## Errors
+
+Every public `PhotoService` method uses typed throws — `throws(PhotosError)`
+— so `catch` binds one enum that still tells every failure apart:
+
+```swift
+do {
+    try await service.setTitle(id: id, "Golden hour")
+} catch {
+    switch error {                      // `error` is a PhotosError
+    case let .service(e): print(e)      // PhotoServiceError: validation / PhotoKit
+    case let .appleScript(e): print(e)  // AppleScriptError: titles, free-text search
+    case .cancelled: break              // the store reported task cancellation
+    }
+}
+```
+
+`error.localizedDescription` is the wrapped error's, unchanged.
+`error.serviceError` / `error.appleScriptError` unwrap one side without a
+`switch`. `AppleScriptRunner.run(source:)` is `throws(AppleScriptError)`.
+
+### Migrating from 1.x (breaking)
+
+1. **Catch `PhotosError`, not the two types separately.** Replace
+   `catch let e as PhotoServiceError { … } catch let e as AppleScriptError { … }`
+   around `PhotoService` calls with one `catch let e as PhotosError` (or, in
+   a `do` block containing only `PhotoService` calls, a bare `catch`) and
+   `switch` on `.service(e)` / `.appleScript(e)` / `.cancelled` — the inner
+   `PhotoServiceError` and `AppleScriptError` cases are unchanged.
+   `#expect(throws: PhotoServiceError.notFound("x"))` becomes
+   `#expect(throws: PhotosError.service(.notFound("x")))`.
+2. **Custom `AppleScriptRunner`s** must declare
+   `func run(source: String) async throws(AppleScriptError) -> String`
+   (a non-throwing `run` also conforms). A plain `throws` witness no
+   longer compiles.
+3. **Custom `PhotoLibraryStore`s need no change** — the protocol keeps
+   untyped `throws`. `PhotoServiceError`s they throw arrive as
+   `.service(…)`; any other error type arrives as
+   `.service(.operationFailed(localizedDescription))`, and
+   `CancellationError` as `.cancelled`.
+
 ## Capabilities & limits
 
 - **No asset deletion.** PhotoKit asset deletion always shows a blocking
