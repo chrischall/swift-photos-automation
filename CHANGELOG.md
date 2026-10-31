@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/chrischall/swift-photos-automation/compare/v1.2.0...v2.0.0) (2026-10-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* PhotoService methods throw PhotosError instead of bare PhotoServiceError / AppleScriptError, and AppleScriptRunner conformances must declare `throws(AppleScriptError)`. See README "Migrating from 1.x".
+
+### Features
+
+* adopt typed throws on the public PhotoService API ([#47](https://github.com/chrischall/swift-photos-automation/issues/47)) ([a19909b](https://github.com/chrischall/swift-photos-automation/commit/a19909b74301fbc9df8bd1a19f9e533c19de8914))
+
 ## [1.2.0](https://github.com/chrischall/swift-photos-automation/compare/v1.1.0...v1.2.0) (2026-10-30)
 
 
